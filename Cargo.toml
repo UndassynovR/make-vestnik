@@ -1,0 +1,11 @@
+[package]
+name = "newman"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.98"
+notify = "8.0.0"
+pandoc = "0.8.11"
+regex = "1.11.1"
+zip = { version = "4.0.0", default-features = false, features = ["deflate"] }

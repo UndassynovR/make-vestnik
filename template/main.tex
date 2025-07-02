@@ -1,0 +1,31 @@
+\documentclass[12pt]{book} % Document class
+
+% Include packages and custom settings
+\input{src/packages}
+
+\begin{document}
+
+% Include cover page (PDF)
+\includepdf[pages=-,noautoscale,width=\paperwidth,height=\paperheight]{media/vestnik-front.png}
+
+% Disable page numbering for the front matter
+\pagenumbering{gobble}
+
+% First pages (title, abstract, etc.)
+\input{src/first_pages.tex}
+
+% Table of contents title
+\cleardoublepage{}
+\begin{center}{\large МАЗМҰНЫ – СОДЕРЖАНИЕ – CONTENTS}\end{center}
+\tableofcontents
+\clearpage
+
+% Enable page numbering and fancy headers/footers
+\pagenumbering{arabic}
+
+% Main content
+
+% Last page (appendix, references, etc.)
+\input{src/last_page.tex}
+
+\end{document}

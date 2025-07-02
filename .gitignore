@@ -1,0 +1,14 @@
+# Ignore build directory
+build/
+target/
+.direnv/
+
+*.docx
+
+# Ignore ghost/undo files
+*~
+.*~
+*#
+
+# Ignore .DS_Store files (macOS system files)
+.DS_Store

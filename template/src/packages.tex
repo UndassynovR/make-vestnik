@@ -1,0 +1,281 @@
+% Packages for Font and Language Support
+\usepackage{fontspec}                 % Kazakh and Russian fonts
+\usepackage{polyglossia}              % Multilingual support
+\setmainlanguage{russian}
+\setotherlanguages{english}
+
+\defaultfontfeatures{Ligatures=TeX}
+
+\setmainfont[
+  Language=Russian,                   % Important! Pass language option to fontspec for hyphenation
+  Script=Cyrillic
+]{FreeSerif}
+
+\setsansfont[
+  Language=Russian,
+  Script=Cyrillic
+]{FreeSans}
+
+\setmonofont{FreeMono}
+
+% Packages for Page Layout and Formatting
+\usepackage[margin=2cm]{geometry}     % Customizing page layout and margins
+\usepackage{sectsty}                  % Customizing section headings
+\usepackage{titlesec}                 % Formatting sections and chapters
+\usepackage{fancyhdr}                 % Custom headers and footers
+\usepackage{microtype}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[LE,RO]{\thepage}
+\fancyhead[LO]{\MakeUppercase{\leftmark}}
+\fancyhead[RE]{ҚазТБУ ХАБАРШЫСЫ - VESTNIK KazUTB - ВЕСТНИК КазУТБ}
+
+\setlength{\headheight}{22pt}
+\addtolength{\topmargin}{-10pt}
+
+\renewcommand{\headrule}{\hbox to\headwidth{%
+  \color{lightblue}\leaders\hrule height \headrulewidth\hfill}
+}
+\renewcommand{\headrulewidth}{2pt}% 2pt header rule
+
+\renewcommand{\footrule}{\hbox to\headwidth{%
+  \color{lightblue}\leaders\hrule height \footrulewidth\hfill}
+}
+\renewcommand{\footrulewidth}{2pt}
+
+\renewcommand{\chaptermark}[1]{ \markboth{#1}{} }
+\renewcommand{\sectionmark}[1]{ \markright{#1}{} }
+
+\addto\captionsrussian{
+    \renewcommand{\contentsname}{}
+}
+
+% Packages for Links and Hypertext
+\usepackage{hyperref}                 % Hyperlinks within the document
+\renewcommand{\UrlFont}{\normalfont}
+\usepackage{xcolor}                   % Color support
+\hypersetup{
+    colorlinks=true, 
+    linkcolor=black, 
+    urlcolor=black, 
+    bookmarks=true,
+    bookmarksopen=true,
+    bookmarksnumbered=true
+}
+\definecolor{lightblue}{RGB}{0,116,180}
+
+% Table packages
+\usepackage{booktabs}                 % Enhanced table formatting
+\usepackage{tabularx}                 % Enhanced table environments
+\usepackage{longtable}                % Tables spanning multiple pages
+\usepackage{multirow}                 % Multi-row cells in tables
+\usepackage{makecell}                 % Additional table commands
+\usepackage{chngcntr}                 % Customizing table and figure numbering
+\usepackage{tabularray}
+\DefTblrTemplate{middlehead,lasthead}{default}{}
+\DefTblrTemplate{firstfoot,middlefoot}{default}{}
+\DefTblrTemplate{capcont}{default}{}    % Removes a caption on subsequent pages
+\DefTblrTemplate{contfoot}{default}{}   % Removes text denoting continuation on next page
+
+% Packages for Graphics and Figures
+\usepackage{graphicx}                 % Including graphics in the document
+\usepackage{svg}                      % Scalable Vector Graphics support
+\usepackage{float}                    % Enhanced placement of figures and tables
+\usepackage{subcaption}               % Subfigures and subtables
+%% \graphicspath{{assets}}
+
+% Packages for Mathematics
+\usepackage{amsmath}                  % Additional math symbols and environments
+\usepackage{unicode-math}             % Support for Unicode math symbols
+
+% Packages for Text Formatting
+\usepackage[normalem]{ulem}           % Underlining and emphasis styles
+\usepackage{calc}                     % Mathematical calculations in LaTeX commands
+\usepackage{soul}                     % Additional text formatting options
+\usepackage{multicol}                 % Multi-column layout
+\usepackage{listings}                 % Code listings
+\lstset{
+    language=Python,  % You can set the language, or leave it for generic code
+    basicstyle=\ttfamily\small, % Use a monospaced font with smaller size
+    keywordstyle=\color{blue}, % Color keywords
+    commentstyle=\color{gray}, % Color comments
+    stringstyle=\color{red}, % Color strings
+    numbers=none, % Disable line numbers
+    tabsize=4, % Set tab size
+    breaklines=true, % Automatically break long lines
+}
+
+\setlength{\parskip}{0.3em}
+\setlength{\parindent}{1em}
+
+% Redefine the format of the section title
+\titleformat{\section}[block]{\centering\bfseries\large}{}{0pt}{}[]
+\titleformat{\chapter}[display]
+  {\centering\large\bfseries\itshape}{}{1em}{\large}
+% Decrease the top margin for chapter titles
+\titlespacing*{\chapter}{0pt}{-100pt}{1em}
+
+% Customization for Lists and Enumerations
+\usepackage{enumitem}                 % Custom list environments
+\setlist[itemize]{itemsep=0.0em, topsep=0pt, partopsep=0pt, parsep=0pt, leftmargin=0.1em}
+\setlist[enumerate]{itemsep=0.0em, topsep=0pt, partopsep=0pt, parsep=0pt, leftmargin=0.1em}
+
+% Packages for Document Structure
+\usepackage{tocloft}                  % Customizing Table of Contents
+\usepackage{pdfpages}                 % Including PDF pages
+
+% Adjust vertical space before and after TOC title
+\setlength{\cftbeforetoctitleskip}{-3em} % Space before the TOC title
+\setlength{\cftaftertoctitleskip}{-2em} % Space after the TOC title
+
+\cftsetindents{part}{0em}{2em}
+\cftsetindents{chapter}{0em}{2em}
+\cftsetindents{section}{0.5em}{0em}
+\cftsetindents{subsection}{0em}{2em}
+\renewcommand{\cftchapfont}{\itshape\bfseries}
+
+\makeatletter
+\renewcommand*\l@part[2]{%
+  \ifnum \c@tocdepth >-2\relax
+    \addpenalty{-\@highpenalty}%
+    \addvspace{1.25em \@plus\p@}%
+    \setlength\@tempdima{3em}%
+    \begingroup
+      \parindent \z@ \rightskip \@pnumwidth
+      \parfillskip -\@pnumwidth
+      {\leavevmode
+       \hspace*{\fill}\centering\bfseries\itshape #1\hspace*{\fill}}\par
+       \nobreak
+         \global\@nobreaktrue
+         \everypar{\global\@nobreakfalse\everypar{}}%
+    \endgroup
+  \fi}
+\makeatother
+
+\renewcommand\cfttoctitlefont{\hfill\large\bfseries}
+\renewcommand\cftaftertoctitle{\hfill\mbox{}}
+
+\renewcommand{\part}[1]{\addcontentsline{toc}{part}{#1}}
+
+% Additional Packages and Customizations
+\usepackage{mdframed}                 % Framed boxes
+\usepackage{ragged2e}                 % Advanced text alignment
+%% \newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}} % Centered column type for tables
+%% \newcolumntype{X}[1]{>{\raggedright\arraybackslash}p{#1}} % Left-aligned column type
+
+% Define a new column type 'C' for centered p columns
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}} 
+\newcolumntype{X}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% Рис.1 -
+\usepackage{caption}
+\renewcommand{\thefigure}{\arabic{figure}}
+\DeclareCaptionLabelFormat{figureformat}{#1 #2}
+\DeclareCaptionLabelSeparator{figureformat}{ - }
+\captionsetup[figure]{font={bf, small}, labelformat=figureformat, labelsep=figureformat, justification=centering}
+
+% Таблица 1 -
+\numberwithin{table}{section}
+\renewcommand{\thetable}{\arabic{table}}
+\DeclareCaptionLabelFormat{tableformat}{Таблица #2}
+\DeclareCaptionLabelSeparator{tableformat}{ - }
+\captionsetup[table]{font={bf, small}, labelformat=tableformat, labelsep=tableformat, justification=centering}
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtblr}{\vspace{-15pt}}
+
+\renewcommand{\theequation}{\arabic{equation}}
+% Define the aliases for superscript and subscript
+\newcommand{\tsp}[1]{\textsuperscript{#1}}
+\newcommand{\tsb}[1]{\textsubscript{#1}}
+
+\newcommand{\envelope}{\textsuperscript{\includegraphics[width=1em]{media/envelope}}}
+\newcommand{\authorid}{\textsuperscript{\includegraphics[width=1em]{media/authorid}}}
+\newcommand{\alink}[1]{\href{#1}{\authorid}}
+
+\titleformat{\section}[block]{\normalfont\centering\fontsize{11}{13}\selectfont\bfseries}{}{0pt}{}
+\titlespacing{\section}{0pt}{1em}{1ex plus .2ex}
+
+% Hyphentation penalty
+%% \hyphenpenalty=5000
+%% \exhyphenpenalty=5000
+
+% Environments
+\newcommand{\id}[2]{%
+    \newpage
+    {\fontsize{11}{10}\selectfont #1}%
+    \hfill {\bfseries \href{#2}{#2}}%
+    \ignorespaces%
+}
+
+\newcommand{\ID}[2]{%
+    {\fontsize{11}{10}\selectfont #1}%
+    \hfill {\bfseries \href{#2}{#2}}%
+    \ignorespaces%
+}
+
+\newenvironment{articleheader}{%
+    \begin{center}%
+    \fontsize{11}{12}\selectfont % Slightly smaller line height for the header
+}{%
+    \end{center}%
+}
+
+\newcommand{\sectionwithauthors}[2]{%
+  \phantomsection
+  \section*{#2}%
+  \vspace{-0.6em}%
+  \addcontentsline{toc}{section}{%
+    #1 \\ % Authors
+    \normalsize\itshape #2 % Section Title
+  }%
+  \setcounter{figure}{0}%
+  \setcounter{table}{0}%
+  \setcounter{equation}{0}%
+}
+
+\newenvironment{affiliation}{%
+    \fontsize{10}{10}\selectfont % Smaller font size
+    \setlength{\parskip}{0pt} % Remove space between paragraphs
+    \centering
+    \vspace{-0.8em} % Reduce space between header and affiliation
+}{%
+    \par%
+}
+
+\newenvironment{refs}{%
+  \setlength{\parindent}{0pt}%
+}{%
+  \par%
+}
+
+\newenvironment{references}{%
+  \setlength{\parindent}{0pt}%
+}{%
+  \par%
+}
+
+\newenvironment{authorinfo}{%
+  \vspace{\baselineskip}%
+  \fontsize{10}{12}\selectfont%
+  \setlength{\parindent}{0pt}%
+}{%
+  \par%
+}
+
+\renewcommand{\nolinkurl}[1]{#1}
+
+
+\newcommand*{\tcap}[2][]{%
+  \begin{center}
+    \parbox{0.9\textwidth}{\centering\textbf{% Adjust width as needed (0.8, 0.85, 0.9, etc.)
+      \ifx\\#1\\% Check if optional argument is empty
+        #2%
+      \else
+        #2%
+      \fi
+    }}
+  \end{center}
+  \vspace{-1em}
+}
+
+\usepackage{rotating}
