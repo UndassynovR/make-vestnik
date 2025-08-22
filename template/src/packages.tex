@@ -1,3 +1,7 @@
+% Load early packages first
+\usepackage{etoolbox}                 % Load early for other packages
+\usepackage{xcolor}                   % Load before packages that use colors
+
 % Packages for Font and Language Support
 \usepackage{fontspec}                 % Kazakh and Russian fonts
 \usepackage{polyglossia}              % Multilingual support
@@ -7,12 +11,14 @@
 \defaultfontfeatures{Ligatures=TeX}
 
 \setmainfont[
-  Language=Russian,                   % Important! Pass language option to fontspec for hyphenation
-  Script=Cyrillic
-]{FreeSerif}
+  Language=Default,
+  Script=Cyrillic,
+  Numbers=Lining,
+  Ligatures=TeX
+]{Liberation Serif}
 
 \setsansfont[
-  Language=Russian,
+  Language=Default,
   Script=Cyrillic
 ]{FreeSans}
 
@@ -24,14 +30,17 @@
 \usepackage{titlesec}                 % Formatting sections and chapters
 \usepackage{fancyhdr}                 % Custom headers and footers
 \usepackage{microtype}
+
 \pagestyle{fancy}
 \fancyhf{}
 \fancyfoot[LE,RO]{\thepage}
 \fancyhead[LO]{\MakeUppercase{\leftmark}}
 \fancyhead[RE]{ҚазТБУ ХАБАРШЫСЫ - VESTNIK KazUTB - ВЕСТНИК КазУТБ}
 
-\setlength{\headheight}{22pt}
-\addtolength{\topmargin}{-10pt}
+\setlength{\headheight}{25pt}
+\addtolength{\topmargin}{-3pt}
+
+\definecolor{lightblue}{RGB}{0,116,180}
 
 \renewcommand{\headrule}{\hbox to\headwidth{%
   \color{lightblue}\leaders\hrule height \headrulewidth\hfill}
@@ -52,17 +61,17 @@
 
 % Packages for Links and Hypertext
 \usepackage{hyperref}                 % Hyperlinks within the document
-\renewcommand{\UrlFont}{\normalfont}
-\usepackage{xcolor}                   % Color support
 \hypersetup{
-    colorlinks=true, 
-    linkcolor=black, 
-    urlcolor=black, 
-    bookmarks=true,
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=black,
     bookmarksopen=true,
-    bookmarksnumbered=true
+    bookmarksnumbered=true,
+    pdftitle={КазТБУ ХАБАРШЫСЫ - VESTNIK KazUTB - ВЕСТНИК КазУТБ},
+    pdfauthor={КазТБУ},
+    pdfsubject={Academic Journal}
 }
-\definecolor{lightblue}{RGB}{0,116,180}
+\renewcommand{\UrlFont}{\normalfont}
 
 % Table packages
 \usepackage{booktabs}                 % Enhanced table formatting
@@ -72,17 +81,17 @@
 \usepackage{makecell}                 % Additional table commands
 \usepackage{chngcntr}                 % Customizing table and figure numbering
 \usepackage{tabularray}
+
 \DefTblrTemplate{middlehead,lasthead}{default}{}
 \DefTblrTemplate{firstfoot,middlefoot}{default}{}
 \DefTblrTemplate{capcont}{default}{}    % Removes a caption on subsequent pages
 \DefTblrTemplate{contfoot}{default}{}   % Removes text denoting continuation on next page
 
 % Packages for Graphics and Figures
-\usepackage{graphicx}                 % Including graphics in the document
+\usepackage[xetex]{graphicx}          % Including graphics in the document
 \usepackage{svg}                      % Scalable Vector Graphics support
 \usepackage{float}                    % Enhanced placement of figures and tables
 \usepackage{subcaption}               % Subfigures and subtables
-%% \graphicspath{{assets}}
 
 % Packages for Mathematics
 \usepackage{amsmath}                  % Additional math symbols and environments
@@ -94,15 +103,16 @@
 \usepackage{soul}                     % Additional text formatting options
 \usepackage{multicol}                 % Multi-column layout
 \usepackage{listings}                 % Code listings
+
 \lstset{
-    language=Python,  % You can set the language, or leave it for generic code
-    basicstyle=\ttfamily\small, % Use a monospaced font with smaller size
-    keywordstyle=\color{blue}, % Color keywords
-    commentstyle=\color{gray}, % Color comments
-    stringstyle=\color{red}, % Color strings
-    numbers=none, % Disable line numbers
-    tabsize=4, % Set tab size
-    breaklines=true, % Automatically break long lines
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    numbers=none,
+    tabsize=4,
+    breaklines=true
 }
 
 \setlength{\parskip}{0.3em}
@@ -160,44 +170,51 @@
 % Additional Packages and Customizations
 \usepackage{mdframed}                 % Framed boxes
 \usepackage{ragged2e}                 % Advanced text alignment
-%% \newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}} % Centered column type for tables
-%% \newcolumntype{X}[1]{>{\raggedright\arraybackslash}p{#1}} % Left-aligned column type
 
-% Define a new column type 'C' for centered p columns
-\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}} 
-\newcolumntype{X}[1]{>{\raggedright\arraybackslash}p{#1}}
+% Define column types for tables
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}  % Centered column type
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}} % Left-aligned column type (renamed from X)
 
-% Рис.1 -
+% Caption formatting
 \usepackage{caption}
+
+% Figure captions: Рис.1 -
 \renewcommand{\thefigure}{\arabic{figure}}
 \DeclareCaptionLabelFormat{figureformat}{#1 #2}
 \DeclareCaptionLabelSeparator{figureformat}{ - }
 \captionsetup[figure]{font={bf, small}, labelformat=figureformat, labelsep=figureformat, justification=centering}
 
-% Таблица 1 -
+% Table captions: Таблица 1 -
 \numberwithin{table}{section}
 \renewcommand{\thetable}{\arabic{table}}
 \DeclareCaptionLabelFormat{tableformat}{Таблица #2}
 \DeclareCaptionLabelSeparator{tableformat}{ - }
 \captionsetup[table]{font={bf, small}, labelformat=tableformat, labelsep=tableformat, justification=centering}
-\usepackage{etoolbox}
+
 \AtBeginEnvironment{longtblr}{\vspace{-15pt}}
 
 \renewcommand{\theequation}{\arabic{equation}}
+
 % Define the aliases for superscript and subscript
 \newcommand{\tsp}[1]{\textsuperscript{#1}}
 \newcommand{\tsb}[1]{\textsubscript{#1}}
 
 \newcommand{\envelope}{\textsuperscript{\includegraphics[width=1em]{media/envelope}}}
 \newcommand{\authorid}{\textsuperscript{\includegraphics[width=1em]{media/authorid}}}
-\newcommand{\alink}[1]{\href{#1}{\authorid}}
+
+% Improved alink command with empty argument handling
+\makeatletter
+\newcommand{\alink}[1]{%
+  \ifx\\#1\\%
+    \authorid%
+  \else%
+    \href{#1}{\authorid}%
+  \fi%
+}
+\makeatother
 
 \titleformat{\section}[block]{\normalfont\centering\fontsize{11}{13}\selectfont\bfseries}{}{0pt}{}
 \titlespacing{\section}{0pt}{1em}{1ex plus .2ex}
-
-% Hyphentation penalty
-%% \hyphenpenalty=5000
-%% \exhyphenpenalty=5000
 
 % Environments
 \newcommand{\id}[2]{%
@@ -213,14 +230,14 @@
     \ignorespaces%
 }
 
-\newenvironment{articleheader}{%
+\newenvironment{header}{%
     \begin{center}%
     \fontsize{11}{12}\selectfont % Slightly smaller line height for the header
 }{%
     \end{center}%
 }
 
-\newcommand{\sectionwithauthors}[2]{%
+\newcommand{\swa}[2]{%
   \phantomsection
   \section*{#2}%
   \vspace{-0.6em}%
@@ -233,7 +250,7 @@
   \setcounter{equation}{0}%
 }
 
-\newenvironment{affiliation}{%
+\newenvironment{affil}{%
     \fontsize{10}{10}\selectfont % Smaller font size
     \setlength{\parskip}{0pt} % Remove space between paragraphs
     \centering
@@ -248,13 +265,7 @@
   \par%
 }
 
-\newenvironment{references}{%
-  \setlength{\parindent}{0pt}%
-}{%
-  \par%
-}
-
-\newenvironment{authorinfo}{%
+\newenvironment{info}{%
   \vspace{\baselineskip}%
   \fontsize{10}{12}\selectfont%
   \setlength{\parindent}{0pt}%
@@ -263,7 +274,6 @@
 }
 
 \renewcommand{\nolinkurl}[1]{#1}
-
 
 \newcommand*{\tcap}[2][]{%
   \begin{center}
@@ -278,4 +288,42 @@
   \vspace{-1em}
 }
 
-\usepackage{rotating}
+% Custom figure commands
+% Simple figure: \fig[width]{path}{caption}
+\newcommand{\fig}[3][0.8]{%
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=#1\textwidth]{media/#2}
+    \ifx\\#3\\%
+      \caption*{}%
+    \else%
+      \caption*{#3}%
+    \fi%
+  \end{figure}%
+}
+
+% Subfigure helper: \subfig[width]{height}{path}{caption}
+\newcommand{\subfig}[4][0.3]{%
+  \begin{subfigure}[t]{#1\textwidth}
+    \centering
+    \includegraphics[width=\textwidth, height=#2]{media/#3}
+    \caption*{\textit{#4}}
+  \end{subfigure}%
+}
+
+% Start multi-subfigure environment: \figstart{main caption}
+\newcommand{\figstart}[1]{%
+  \begin{figure}[H]
+    \centering
+    \def\maincaption{#1}%
+}
+
+% End multi-subfigure environment: \figend
+\newcommand{\figend}{%
+    \ifx\maincaption\empty%
+      \caption*{}%
+    \else%
+      \caption*{\maincaption}%
+    \fi%
+  \end{figure}%
+}

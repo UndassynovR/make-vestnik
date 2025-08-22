@@ -2,10 +2,12 @@ use crate::images::extract_images_from_docx;
 use crate::latex_ext::LatexStringExt;
 use crate::pandoc_ext::run_pandoc;
 use crate::util::copy_recursively;
+use colored::*;
 
 use std::error::Error;
 use std::fs::{copy, create_dir_all, read_to_string, write};
 use std::io;
+use std::env;
 use std::path::{Path, PathBuf};
 
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -14,10 +16,22 @@ use std::time::{Duration, Instant};
 
 pub fn create_project<P: AsRef<Path>>(project_dir: P) -> Result<(), Box<dyn Error>> {
     let project_dir = project_dir.as_ref();
-
-    // Copy template into the new project directory
-    let template_path = Path::new("/home/omega/projects/vestnik/newman/template");
-    copy_recursively(template_path, project_dir)?;
+    
+    // Get the absolute path of the current executable
+    let exe_path = env::current_exe()?;
+    let exe_dir = exe_path.parent().unwrap();
+    
+    // Go up to the project root (two levels up from target/debug)
+    let project_root = exe_dir.parent()
+        .and_then(|p| p.parent())
+        .ok_or_else(|| "Could not find project root")?;
+    
+    // Construct the template path relative to the project root
+    let template_path = project_root.join("template");
+    
+    // Copy template recursively
+    copy_recursively(&template_path, project_dir)?;
+    
     Ok(())
 }
 
@@ -49,8 +63,7 @@ pub fn update_project<P: AsRef<Path>, Q: AsRef<Path>>(
     let mut text = run_pandoc(input_path);
     text.replace_textbf();
     text.remove_short_bfseries()?;
-    text.fix_enumerate()?;
-    text.fix_itemize()?;
+    text.fix_lists();
     text.fix_number_spacing()?;
     text.remove_tag("ul");
     text.remove_tag("hl");
@@ -62,6 +75,7 @@ pub fn update_project<P: AsRef<Path>, Q: AsRef<Path>>(
     text.unindent();
     text.replace_bullets();
     text.fix_images(part_name);
+	text.replace_super_sub_scripts();
 
     // Split into individual articles
     let articles: Vec<String> = text.split_articles();
@@ -101,9 +115,14 @@ pub fn watch_and_compile_project(project_dir: Option<PathBuf>) -> io::Result<()>
     let build_dir = project_dir.join("build");
     create_dir_all(&build_dir)?;
 
+    // Compile once on startup
+    println!("{}", "Initial compilation started...".cyan());
+    compile_project(&project_dir, &build_dir);
+
     let (tx, rx) = channel();
     let mut watcher = RecommendedWatcher::new(tx, Config::default())
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
     watcher
         .watch(&project_dir, RecursiveMode::Recursive)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
@@ -119,7 +138,6 @@ pub fn watch_and_compile_project(project_dir: Option<PathBuf>) -> io::Result<()>
                 if !matches!(event.kind, EventKind::Modify(_)) {
                     continue;
                 }
-
                 let relevant_paths = event
                     .paths
                     .into_iter()
@@ -131,32 +149,49 @@ pub fn watch_and_compile_project(project_dir: Option<PathBuf>) -> io::Result<()>
                 }
 
                 for path in &relevant_paths {
-                    println!("🔁 Detected change: {}", path.display());
+                    println!("{}", format!("Detected change: {}", path.display()).yellow());
                 }
-
                 triggered = true;
                 last_event = Instant::now();
             }
-            Ok(Err(e)) => eprintln!("⚠️ Watch error: {e}"),
+            Ok(Err(e)) => eprintln!("{}", format!("Watch error: {}", e).yellow()),
             Err(_) => {
                 if triggered && last_event.elapsed() >= debounce_duration {
                     triggered = false;
-
-                    println!("✅ Compilation started...");
-                    let status = std::process::Command::new("tectonic")
-                        .args(&["-X", "compile", "main.tex"])
-                        .arg(format!("--outdir={}", build_dir.display()))
-                        .current_dir(&project_dir)
-                        .status();
-
-                    match status {
-                        Ok(status) if status.success() => println!("✅ Compilation succeeded!"),
-                        Ok(status) => eprintln!("❌ Compilation failed with status: {}", status),
-                        Err(e) => eprintln!("❌ Failed to run tectonic: {}", e),
-                    }
+                    println!("{}", "Compilation started...".cyan());
+                    compile_project(&project_dir, &build_dir);
                 }
             }
         }
+    }
+}
+
+fn compile_project(project_dir: &PathBuf, build_dir: &PathBuf) {
+    let start_time = Instant::now();
+    
+    let status = std::process::Command::new("xelatex")
+        .args(&[
+            "-interaction=nonstopmode",
+            "-halt-on-error",
+            "-output-directory",
+            &build_dir.display().to_string(),
+            "main.tex"
+        ])
+        .current_dir(project_dir)
+        .status();
+
+    let duration = start_time.elapsed();
+    
+    match status {
+        Ok(status) if status.success() => {
+            println!("{}", format!("Compilation succeeded! ({:.2}s)", duration.as_secs_f64()).green())
+        },
+        Ok(status) => {
+            eprintln!("{}", format!("Compilation failed with status: {} ({:.2}s)", status, duration.as_secs_f64()).red())
+        },
+        Err(e) => {
+            eprintln!("{}", format!("Failed to run xelatex: {} ({:.2}s)", e, duration.as_secs_f64()).red())
+        },
     }
 }
 

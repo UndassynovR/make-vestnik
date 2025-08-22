@@ -5,8 +5,7 @@ use regex::Regex;
 pub trait LatexStringExt {
     fn replace_textbf(&mut self);
     fn remove_short_bfseries(&mut self) -> Result<(), regex::Error>;
-    fn fix_enumerate(&mut self) -> Result<(), regex::Error>;
-    fn fix_itemize(&mut self) -> Result<(), regex::Error>;
+    fn fix_lists(&mut self);
     fn fix_number_spacing(&mut self) -> Result<(), regex::Error>;
     fn remove_tag(&mut self, tag: &str);
     fn comment_out_tables(&mut self);
@@ -17,6 +16,7 @@ pub trait LatexStringExt {
     fn split_articles(&self) -> Vec<String>;
     fn replace_bullets(&mut self);
     fn fix_images(&mut self, part_name: &str);
+	fn replace_super_sub_scripts(&mut self);
 }
 
 impl LatexStringExt for String {
@@ -30,40 +30,55 @@ impl LatexStringExt for String {
         Ok(())
     }
 
-    fn fix_enumerate(&mut self) -> Result<(), regex::Error> {
-        let re_item = Regex::new(r"\\item\s+")?;
-        let re_numbers = Regex::new(r"\n((?:\d+\.)+)\s*")?;
-        let re_dot = Regex::new(r"\.( )(\d)")?;
-
+    fn fix_lists(&mut self) {
         let mut output = String::new();
-        let mut inside_enum = false;
-        let mut buffer = Vec::new();
+        let mut state = 0; // 0 = none, 1 = itemize, 2 = enumerate
+        let mut buffer: Vec<&str> = Vec::new();
 
         for line in self.lines() {
             let trimmed = line.trim_start();
 
-            if trimmed == r"\begin{enumerate}" {
-                inside_enum = true;
-                continue;
+            match trimmed {
+                r"\begin{itemize}" => {
+                    state = 1;
+                    continue;
+                }
+                r"\begin{enumerate}" => {
+                    state = 2;
+                    continue;
+                }
+                r"\end{itemize}" | r"\end{enumerate}" => {
+                    if state != 0 {
+                        let mut count = 1;
+                        for buf_line in &buffer {
+                            if buf_line.trim_start().starts_with(r"\item") {
+                                match state {
+                                    1 => { // itemize
+                                        let replaced = buf_line.replacen(r"\item", "- ", 1);
+                                        output.push_str(&replaced.trim_start());
+                                    }
+                                    2 => { // enumerate
+                                        let replaced = buf_line.replacen(r"\item", &format!("{}. ", count), 1);
+                                        output.push_str(&replaced.trim_start());
+                                        count += 1;
+                                    }
+                                    _ => {}
+                                }
+                                output.push('\n');
+                            } else {
+                                output.push_str(buf_line);
+                                output.push('\n');
+                            }
+                        }
+                        buffer.clear();
+                        state = 0;
+                    }
+                    continue;
+                }
+                _ => {}
             }
 
-            if trimmed == r"\def\labelenumi{\arabic{enumi}.}" {
-                continue;
-            }
-
-            if trimmed == r"\end{enumerate}" {
-                inside_enum = false;
-                // process buffered block
-                let mut block = buffer.join("\n");
-                block = re_item.replace_all(&block, "\n1. ").to_string();
-                block = re_numbers.replace_all(&block, "\n$1 ").to_string();
-                block = re_dot.replace_all(&block, ".$2").to_string();
-                output.push_str(&block);
-                buffer.clear();
-                continue;
-            }
-
-            if inside_enum {
+            if state != 0 {
                 buffer.push(line);
             } else {
                 output.push_str(line);
@@ -72,44 +87,6 @@ impl LatexStringExt for String {
         }
 
         *self = output;
-        Ok(())
-    }
-
-    fn fix_itemize(&mut self) -> Result<(), regex::Error> {
-        let re_item = Regex::new(r"\\item\s+")?;
-
-        let mut output = String::new();
-        let mut inside_itemize = false;
-        let mut buffer = Vec::new();
-
-        for line in self.lines() {
-            let trimmed = line.trim_start();
-
-            if trimmed == r"\begin{itemize}" {
-                inside_itemize = true;
-                continue;
-            }
-
-            if trimmed == r"\end{itemize}" {
-                inside_itemize = false;
-                // process the collected block
-                let mut block = buffer.join("\n");
-                block = re_item.replace_all(&block, "\n- ").to_string();
-                output.push_str(&block);
-                buffer.clear();
-                continue;
-            }
-
-            if inside_itemize {
-                buffer.push(line);
-            } else {
-                output.push_str(line);
-                output.push('\n');
-            }
-        }
-
-        *self = output;
-        Ok(())
     }
 
     fn fix_number_spacing(&mut self) -> Result<(), regex::Error> {
@@ -186,9 +163,11 @@ impl LatexStringExt for String {
         *self = replaced;
     }
 
-    fn replace_envelopes(&mut self) {
-        *self = self.replace('🖂', r"\envelope ");
-    }
+	fn replace_envelopes(&mut self) {
+		// First: replace envelope emoji with LaTeX command
+		*self = self.replace('🖂', r"\envelope ");
+		*self = self.replace(r"\textsuperscript{\envelope }", r"\envelope ");
+	}
 
     fn remove_tightlists(&mut self) {
         *self = self.replace(r"\tightlist", "");
@@ -235,11 +214,21 @@ impl LatexStringExt for String {
         articles
     }
 
-    fn fix_images(&mut self, part_name: &str) {
-        let re = Regex::new(
-            r"\\includegraphics\[[^]]*\]\{media/([^}/\\]+?)(?:\.(?:png|jpe?g|pdf|webp|wmf|emf))?\}",
-        )
-        .unwrap();
-        *self = re.replace_all(self, format!("\n\\begin{{figure}}[H]\n\t\\centering\n\t\\includegraphics[width=0.8\\textwidth]{{media/{part_name}/$1}}\n\t\\caption*{{}}\n\\end{{figure}}\n")).into();
-    }
+	fn fix_images(&mut self, part_name: &str) {
+		let re = Regex::new(
+			r"\\includegraphics\[[^]]*\]\{media/([^}/\\]+?)(?:\.(?:png|jpe?g|pdf|webp|wmf|emf))?\}",
+		)
+		.unwrap();
+		*self = re.replace_all(self, format!("\\fig{{{part_name}/$1}}{{}}")).into();
+	}
+
+	fn replace_super_sub_scripts(&mut self) {
+		// Replace \textsuperscript{...} with \tsp{...}
+		let superscript_re = Regex::new(r"\\textsuperscript\{([^}]*)\}").unwrap();
+		*self = superscript_re.replace_all(self, r"\\tsp{$1}").into();
+
+		// Replace \textsubscript{...} with \tsb{...}
+		let subscript_re = Regex::new(r"\\textsubscript\{([^}]*)\}").unwrap();
+		*self = subscript_re.replace_all(self, r"\\tsb{$1}").into();
+	}
 }
