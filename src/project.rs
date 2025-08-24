@@ -4,10 +4,10 @@ use crate::pandoc_ext::run_pandoc;
 use crate::util::copy_recursively;
 use colored::*;
 
+use std::env;
 use std::error::Error;
 use std::fs::{copy, create_dir_all, read_to_string, write};
 use std::io;
-use std::env;
 use std::path::{Path, PathBuf};
 
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -16,22 +16,23 @@ use std::time::{Duration, Instant};
 
 pub fn create_project<P: AsRef<Path>>(project_dir: P) -> Result<(), Box<dyn Error>> {
     let project_dir = project_dir.as_ref();
-    
+
     // Get the absolute path of the current executable
     let exe_path = env::current_exe()?;
     let exe_dir = exe_path.parent().unwrap();
-    
+
     // Go up to the project root (two levels up from target/debug)
-    let project_root = exe_dir.parent()
+    let project_root = exe_dir
+        .parent()
         .and_then(|p| p.parent())
         .ok_or_else(|| "Could not find project root")?;
-    
+
     // Construct the template path relative to the project root
     let template_path = project_root.join("template");
-    
+
     // Copy template recursively
     copy_recursively(&template_path, project_dir)?;
-    
+
     Ok(())
 }
 
@@ -75,7 +76,8 @@ pub fn update_project<P: AsRef<Path>, Q: AsRef<Path>>(
     text.unindent();
     text.replace_bullets();
     text.fix_images(part_name);
-	text.replace_super_sub_scripts();
+    text.replace_super_sub_scripts();
+    text.fix_email_links();
 
     // Split into individual articles
     let articles: Vec<String> = text.split_articles();
@@ -149,7 +151,10 @@ pub fn watch_and_compile_project(project_dir: Option<PathBuf>) -> io::Result<()>
                 }
 
                 for path in &relevant_paths {
-                    println!("{}", format!("Detected change: {}", path.display()).yellow());
+                    println!(
+                        "{}",
+                        format!("Detected change: {}", path.display()).yellow()
+                    );
                 }
                 triggered = true;
                 last_event = Instant::now();
@@ -168,30 +173,49 @@ pub fn watch_and_compile_project(project_dir: Option<PathBuf>) -> io::Result<()>
 
 fn compile_project(project_dir: &PathBuf, build_dir: &PathBuf) {
     let start_time = Instant::now();
-    
+
     let status = std::process::Command::new("xelatex")
         .args(&[
             "-interaction=nonstopmode",
             "-halt-on-error",
             "-output-directory",
             &build_dir.display().to_string(),
-            "main.tex"
+            "main.tex",
         ])
         .current_dir(project_dir)
         .status();
 
     let duration = start_time.elapsed();
-    
+
     match status {
         Ok(status) if status.success() => {
-            println!("{}", format!("Compilation succeeded! ({:.2}s)", duration.as_secs_f64()).green())
-        },
+            println!(
+                "{}",
+                format!("Compilation succeeded! ({:.2}s)", duration.as_secs_f64()).green()
+            )
+        }
         Ok(status) => {
-            eprintln!("{}", format!("Compilation failed with status: {} ({:.2}s)", status, duration.as_secs_f64()).red())
-        },
+            eprintln!(
+                "{}",
+                format!(
+                    "Compilation failed with status: {} ({:.2}s)",
+                    status,
+                    duration.as_secs_f64()
+                )
+                .red()
+            )
+        }
         Err(e) => {
-            eprintln!("{}", format!("Failed to run xelatex: {} ({:.2}s)", e, duration.as_secs_f64()).red())
-        },
+            eprintln!(
+                "{}",
+                format!(
+                    "Failed to run xelatex: {} ({:.2}s)",
+                    e,
+                    duration.as_secs_f64()
+                )
+                .red()
+            )
+        }
     }
 }
 

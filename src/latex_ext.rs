@@ -16,7 +16,8 @@ pub trait LatexStringExt {
     fn split_articles(&self) -> Vec<String>;
     fn replace_bullets(&mut self);
     fn fix_images(&mut self, part_name: &str);
-	fn replace_super_sub_scripts(&mut self);
+    fn replace_super_sub_scripts(&mut self);
+    fn fix_email_links(&mut self);
 }
 
 impl LatexStringExt for String {
@@ -32,53 +33,87 @@ impl LatexStringExt for String {
 
     fn fix_lists(&mut self) {
         let mut output = String::new();
-        let mut state = 0; // 0 = none, 1 = itemize, 2 = enumerate
+
+        #[derive(PartialEq)]
+        enum ListState {
+            NormalText,
+            Itemize,
+            Enumerate,
+        }
+
+        let mut list_state = ListState::NormalText;
         let mut buffer: Vec<&str> = Vec::new();
 
         for line in self.lines() {
-            let trimmed = line.trim_start();
+            let trimmed_line = line.trim_start();
 
-            match trimmed {
-                r"\begin{itemize}" => {
-                    state = 1;
-                    continue;
-                }
-                r"\begin{enumerate}" => {
-                    state = 2;
-                    continue;
-                }
-                r"\end{itemize}" | r"\end{enumerate}" => {
-                    if state != 0 {
-                        let mut count = 1;
-                        for buf_line in &buffer {
-                            if buf_line.trim_start().starts_with(r"\item") {
-                                match state {
-                                    1 => { // itemize
-                                        let replaced = buf_line.replacen(r"\item", "- ", 1);
-                                        output.push_str(&replaced.trim_start());
-                                    }
-                                    2 => { // enumerate
-                                        let replaced = buf_line.replacen(r"\item", &format!("{}. ", count), 1);
-                                        output.push_str(&replaced.trim_start());
-                                        count += 1;
-                                    }
-                                    _ => {}
-                                }
-                                output.push('\n');
-                            } else {
-                                output.push_str(buf_line);
-                                output.push('\n');
-                            }
-                        }
-                        buffer.clear();
-                        state = 0;
-                    }
-                    continue;
-                }
-                _ => {}
+            if trimmed_line == r"\def\labelenumi{\arabic{enumi}.}" {
+                continue;
             }
 
-            if state != 0 {
+            if trimmed_line.contains(r"\begin{itemize}") {
+                list_state = ListState::Itemize;
+                continue;
+            } else if trimmed_line.contains(r"\begin{enumerate}") {
+                list_state = ListState::Enumerate;
+                continue;
+            } else if trimmed_line.contains(r"\end{itemize}")
+                || trimmed_line.contains(r"\end{enumerate}")
+            {
+                let mut counter = 1;
+                let mut i = 0;
+                while i < buffer.len() {
+                    let buf_line = buffer[i].trim_start();
+
+                    let line_text = if buf_line == r"\item" {
+                        // Case: \item is alone on its line
+                        let next = buffer.get(i + 1).map(|s| s.trim_start()).unwrap_or("");
+                        let result = match list_state {
+                            ListState::Enumerate => {
+                                let text = format!("\n{}. {}", counter, next);
+                                counter += 1;
+                                text
+                            }
+                            ListState::Itemize => format!("\n- {}", next),
+                            _ => next.to_string(),
+                        };
+                        i += 2; // skip both this and next line
+                        result
+                    } else {
+                        // Case: \item and text on same line
+                        let result = match list_state {
+                            ListState::Enumerate => {
+                                if let Some(rest) = buf_line.strip_prefix("\\item") {
+                                    let text = format!("\n{}. {}", counter, rest.trim_start());
+                                    counter += 1;
+                                    text
+                                } else {
+                                    buf_line.to_string()
+                                }
+                            }
+                            ListState::Itemize => {
+                                if let Some(rest) = buf_line.strip_prefix("\\item") {
+                                    format!("\n- {}", rest.trim_start())
+                                } else {
+                                    buf_line.to_string()
+                                }
+                            }
+                            _ => buf_line.to_string(),
+                        };
+                        i += 1;
+                        result
+                    };
+
+                    output.push_str(&line_text);
+                    output.push('\n');
+                }
+
+                buffer.clear();
+                list_state = ListState::NormalText;
+                continue; // don't leak \end{...}
+            }
+
+            if list_state != ListState::NormalText {
                 buffer.push(line);
             } else {
                 output.push_str(line);
@@ -86,7 +121,7 @@ impl LatexStringExt for String {
             }
         }
 
-        *self = output;
+        *self = output.replace("\n\n\n", "\n\n");
     }
 
     fn fix_number_spacing(&mut self) -> Result<(), regex::Error> {
@@ -163,11 +198,12 @@ impl LatexStringExt for String {
         *self = replaced;
     }
 
-	fn replace_envelopes(&mut self) {
-		// First: replace envelope emoji with LaTeX command
-		*self = self.replace('🖂', r"\envelope ");
-		*self = self.replace(r"\textsuperscript{\envelope }", r"\envelope ");
-	}
+    fn replace_envelopes(&mut self) {
+        // First: replace envelope emoji with LaTeX command
+        *self = self.replace('🖂', r"\envelope ");
+        *self = self.replace(r"\textsuperscript{\envelope }", r"\envelope ");
+        *self = self.replace(r"{\bfseries \envelope }", r"\envelope ");
+    }
 
     fn remove_tightlists(&mut self) {
         *self = self.replace(r"\tightlist", "");
@@ -214,21 +250,35 @@ impl LatexStringExt for String {
         articles
     }
 
-	fn fix_images(&mut self, part_name: &str) {
-		let re = Regex::new(
-			r"\\includegraphics\[[^]]*\]\{media/([^}/\\]+?)(?:\.(?:png|jpe?g|pdf|webp|wmf|emf))?\}",
-		)
-		.unwrap();
-		*self = re.replace_all(self, format!("\\fig{{{part_name}/$1}}{{}}")).into();
-	}
+    fn fix_images(&mut self, part_name: &str) {
+        let re = Regex::new(
+            r"\\includegraphics\[[^]]*\]\{media/([^}/\\]+?)(?:\.(?:png|jpe?g|pdf|webp|wmf|emf))?\}",
+        )
+        .unwrap();
+        *self = re
+            .replace_all(self, format!("\\fig{{{part_name}/$1}}{{}}"))
+            .into();
+    }
 
-	fn replace_super_sub_scripts(&mut self) {
-		// Replace \textsuperscript{...} with \tsp{...}
-		let superscript_re = Regex::new(r"\\textsuperscript\{([^}]*)\}").unwrap();
-		*self = superscript_re.replace_all(self, r"\\tsp{$1}").into();
+    fn replace_super_sub_scripts(&mut self) {
+        // Replace \textsuperscript{...} with \tsp{...}
+        let superscript_re = Regex::new(r"\\textsuperscript\{([^}]*)\}").unwrap();
+        *self = superscript_re.replace_all(self, r"\tsp{$1}").into();
 
-		// Replace \textsubscript{...} with \tsb{...}
-		let subscript_re = Regex::new(r"\\textsubscript\{([^}]*)\}").unwrap();
-		*self = subscript_re.replace_all(self, r"\\tsb{$1}").into();
-	}
+        // Replace \textsubscript{...} with \tsb{...}
+        let subscript_re = Regex::new(r"\\textsubscript\{([^}]*)\}").unwrap();
+        *self = subscript_re.replace_all(self, r"\tsb{$1}").into();
+    }
+
+    fn fix_email_links(&mut self) {
+        use regex::Regex;
+
+        // Regex to match \href{mailto:EMAIL}{\nolinkurl{EMAIL}} pattern
+        // Captures the email address from the mailto: part
+        let email_regex = Regex::new(r"\\href\{mailto:([^}]+)\}\{\\nolinkurl\{[^}]+\}\}")
+            .expect("Invalid regex pattern");
+
+        let result = email_regex.replace_all(self, "$1");
+        *self = result.to_string();
+    }
 }
