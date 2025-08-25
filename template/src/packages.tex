@@ -275,7 +275,7 @@
 
 \renewcommand{\nolinkurl}[1]{#1}
 
-\newcommand*{\tcap}[2][]{%
+\newcommand*{\tcap}[2][]{% table caption
   \begin{center}
     \parbox{0.9\textwidth}{\centering\textbf{% Adjust width as needed (0.8, 0.85, 0.9, etc.)
       \ifx\\#1\\% Check if optional argument is empty
@@ -288,12 +288,12 @@
   \vspace{-1em}
 }
 
-% Custom figure commands
+% Custom figure commands with flexible width units
 % Simple figure: \fig[width]{path}{caption}
-\newcommand{\fig}[3][0.8]{%
+\newcommand{\fig}[3][0.8\textwidth]{%
   \begin{figure}[H]
     \centering
-    \includegraphics[width=#1\textwidth]{media/#2}
+    \includegraphics[width=#1]{media/#2}
     \ifx\\#3\\%
       \caption*{}%
     \else%
@@ -303,8 +303,8 @@
 }
 
 % Subfigure helper: \subfig[width]{height}{path}{caption}
-\newcommand{\subfig}[4][0.3]{%
-  \begin{subfigure}[t]{#1\textwidth}
+\newcommand{\subfig}[4][0.3\textwidth]{%
+  \begin{subfigure}[t]{#1}
     \centering
     \includegraphics[width=\textwidth, height=#2]{media/#3}
     \caption*{\textit{#4}}
