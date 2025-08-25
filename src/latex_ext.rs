@@ -1,6 +1,4 @@
 use regex::Regex;
-// todo {\bfseries .} remove this
-// todo remove itemize and fix numers in itemize
 
 pub trait LatexStringExt {
     fn replace_textbf(&mut self);
@@ -26,7 +24,8 @@ impl LatexStringExt for String {
     }
 
     fn remove_short_bfseries(&mut self) -> Result<(), regex::Error> {
-        let re = Regex::new(r"\{\\bfseries ([^\s])}")?;
+        // Match "{\bfseries X}" where X is a single non-digit, non-space symbol
+        let re = Regex::new(r"\{\\bfseries ([^\s0-9])}")?;
         *self = re.replace_all(self, "$1").to_string();
         Ok(())
     }
