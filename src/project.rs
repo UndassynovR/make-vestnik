@@ -78,6 +78,8 @@ pub fn update_project<P: AsRef<Path>, Q: AsRef<Path>>(
     text.fix_images(part_name);
     text.replace_super_sub_scripts();
     text.fix_email_links();
+	text.remove_zero_hspace();
+	text.replace_textless();
 
     // Split into individual articles
     let articles: Vec<String> = text.split_articles();

@@ -16,6 +16,8 @@ pub trait LatexStringExt {
     fn fix_images(&mut self, part_name: &str);
     fn replace_super_sub_scripts(&mut self);
     fn fix_email_links(&mut self);
+	fn remove_zero_hspace(&mut self);
+	fn replace_textless(&mut self);
 }
 
 impl LatexStringExt for String {
@@ -251,7 +253,7 @@ impl LatexStringExt for String {
 
     fn fix_images(&mut self, part_name: &str) {
         let re = Regex::new(
-            r"\\includegraphics\[[^]]*\]\{media/([^}/\\]+?)(?:\.(?:png|jpe?g|pdf|webp|wmf|emf))?\}",
+            r"\\includegraphics\[[^]]*\]\{media/([^}/\\]+?)(?:\.(?:png|jpe?g|pdf|webp|wmf|emf|gif))?\}",
         )
         .unwrap();
         *self = re
@@ -269,15 +271,26 @@ impl LatexStringExt for String {
         *self = subscript_re.replace_all(self, r"\tsb{$1}").into();
     }
 
-    fn fix_email_links(&mut self) {
-        use regex::Regex;
+	fn fix_email_links(&mut self) {
+		// Regex to match \href{mailto:EMAIL}{\nolinkurl{EMAIL}}
+		let email_regex = Regex::new(r"\\href\{mailto:([^}]+)\}\{\\nolinkurl\{[^}]+\}\}")
+			.expect("Invalid regex pattern");
 
-        // Regex to match \href{mailto:EMAIL}{\nolinkurl{EMAIL}} pattern
-        // Captures the email address from the mailto: part
-        let email_regex = Regex::new(r"\\href\{mailto:([^}]+)\}\{\\nolinkurl\{[^}]+\}\}")
-            .expect("Invalid regex pattern");
+		let result = email_regex.replace_all(self, |caps: &regex::Captures| {
+			let mut email = caps[1].to_string();
+			// Escape underscores for LaTeX safety
+			email = email.replace("_", r"\_");
+			email
+		});
 
-        let result = email_regex.replace_all(self, "$1");
-        *self = result.to_string();
-    }
+		*self = result.into_owned();
+	}
+
+	fn remove_zero_hspace(&mut self) {
+		*self = self.replace(r"\hspace{0pt}", "");
+	}
+
+	fn replace_textless(&mut self) {
+		*self = self.replace(r"\textless", "<");
+	}
 }

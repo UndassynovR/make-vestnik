@@ -3,7 +3,7 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
 use zip::ZipArchive;
-
+// TODO: convert gif, tiff images to png
 pub fn extract_images_from_docx<P: AsRef<Path>, Q: AsRef<Path>>(
     docx_path: P,
     output_dir: Q,
