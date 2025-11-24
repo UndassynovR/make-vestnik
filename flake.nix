@@ -8,22 +8,31 @@
 
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = import nixpkgs { inherit system; };
+      let
+        pkgs = import nixpkgs { inherit system; };
       in {
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "make-vestnik";
           version = "1.0.0";
+
           src = ./.;
-          cargoLock = ./Cargo.lock;
+
+          # FIXED: must be an attribute set
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
           buildInputs = with pkgs; [
             pandoc
             texlive.combined.scheme-full
             imagemagick
             ghostscript
           ];
+
           nativeBuildInputs = with pkgs; [
             pkg-config
           ];
+
           meta = with pkgs.lib; {
             description = "LaTeX document project manager — converts DOCX, updates projects, and compiles XeLaTeX";
             license = licenses.mit;
