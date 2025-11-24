@@ -14,209 +14,276 @@ use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
-pub fn create_project<P: AsRef<Path>>(project_dir: P) -> Result<(), Box<dyn Error>> {
-    let project_dir = project_dir.as_ref();
-
-    // Get the absolute path of the current executable
-    let exe_path = env::current_exe()?;
-    let exe_dir = exe_path.parent().unwrap();
-
-    // Go up to the project root (two levels up from target/debug)
-    let project_root = exe_dir
-        .parent()
-        .and_then(|p| p.parent())
-        .ok_or_else(|| "Could not find project root")?;
-
-    // Construct the template path relative to the project root
-    let template_path = project_root.join("template");
-
-    // Copy template recursively
-    copy_recursively(&template_path, project_dir)?;
-
-    Ok(())
+pub struct Project {
+    pub root_dir: PathBuf,
+    src_dir: PathBuf,
+    media_dir: PathBuf,
+    build_dir: PathBuf,
+    main_tex: PathBuf,
 }
 
-pub fn update_project<P: AsRef<Path>, Q: AsRef<Path>>(
-    input_path: P,
-    project_dir: Q,
-) -> Result<(), Box<dyn Error>> {
-    let input_path = input_path.as_ref();
-    let project_dir = project_dir.as_ref();
+impl Project {
+    /// Create a new Project instance from a directory path
+    pub fn new<P: AsRef<Path>>(project_dir: P) -> Result<Self, Box<dyn Error>> {
+        let root_dir = project_dir.as_ref().to_path_buf();
 
-    // Derive part name from input filename
-    let part_name = input_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .ok_or("Failed to extract part name from input path")?;
-
-    // Create directory for article .tex files
-    let part_dir = Path::new(project_dir).join("src").join(part_name);
-    create_dir_all(&part_dir)?;
-    copy(input_path, part_dir.join(input_path.file_name().unwrap()))?;
-
-    // Create media directory
-    let media_dir = Path::new(project_dir).join("media").join(part_name);
-    create_dir_all(&media_dir)?;
-
-    let main_path = Path::new(project_dir).join("main.tex");
-
-    // Run Pandoc and process text
-    let mut text = run_pandoc(input_path);
-    text.replace_textbf();
-    text.remove_short_bfseries()?;
-    text.fix_lists();
-    text.fix_number_spacing()?;
-    text.remove_tag("ul");
-    text.remove_tag("hl");
-    text.remove_tag("pandocbounded");
-    text.comment_out_tables();
-    text.change_latex_quotes();
-    text.replace_envelopes();
-    text.remove_tightlists();
-    text.unindent();
-    text.replace_bullets();
-    text.fix_images(part_name);
-    text.replace_super_sub_scripts();
-    text.fix_email_links();
-	text.remove_zero_hspace();
-	text.replace_textless();
-
-    // Split into individual articles
-    let articles: Vec<String> = text.split_articles();
-
-    // Write each article into its own numbered .tex file
-    for (i, article) in articles.iter().enumerate() {
-        let file_path = part_dir.join(format!("{:03}.tex", i + 1));
-        write(file_path, article)?;
+        Ok(Project {
+            src_dir: root_dir.join("src"),
+            media_dir: root_dir.join("media"),
+            build_dir: root_dir.join("build"),
+            main_tex: root_dir.join("main.tex"),
+            root_dir,
+        })
     }
 
-    // Extract images
-    extract_images_from_docx(input_path.to_str().unwrap(), media_dir.to_str().unwrap())?;
+    /// Initialize a new project by copying template files
+    pub fn init(&self) -> Result<(), Box<dyn Error>> {
+        // Get the absolute path of the current executable
+        let exe_path = env::current_exe()?;
+        let exe_dir = exe_path.parent().unwrap();
 
-    let articles_main: String = (0..articles.len())
-        .map(|i| format!("\n\\input{{src/{part_name}/{:03}.tex}}", i + 1))
-        .collect();
-    let contents = read_to_string(&main_path)?;
+        // Go up to the project root (two levels up from target/debug)
+        let project_root = exe_dir
+            .parent()
+            .and_then(|p| p.parent())
+            .ok_or_else(|| "Could not find project root")?;
 
-    let mut new_content = String::new();
-    let mut inserted = false;
+        // Construct the template path relative to the project root
+        let template_path = project_root.join("template");
 
-    for line in contents.lines() {
-        new_content.push_str(line);
-        new_content.push('\n');
-        if !inserted && line.trim() == "% Main content" {
-            new_content.push_str(&articles_main);
-            inserted = true;
+        // Copy template recursively
+        copy_recursively(&template_path, &self.root_dir)?;
+
+        Ok(())
+    }
+
+    /// Add a DOCX file to the project, converting it to LaTeX
+    pub fn add<P: AsRef<Path>>(&self, input_path: P) -> Result<(), Box<dyn Error>> {
+        let input_path = input_path.as_ref();
+
+        // Derive part name from input filename
+        let part_name = input_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or("Failed to extract part name from input path")?;
+
+        // Create directory for article .tex files
+        let part_dir = self.src_dir.join(part_name);
+        create_dir_all(&part_dir)?;
+        copy(input_path, part_dir.join(input_path.file_name().unwrap()))?;
+
+        // Create media directory
+        let media_dir = self.media_dir.join(part_name);
+        create_dir_all(&media_dir)?;
+
+        // Run Pandoc and process text
+        let mut text = run_pandoc(input_path);
+        text.remove_tag("label");
+        text.unwrap_tag("section");
+        text.replace_textbf();
+        text.remove_short_bfseries()?;
+        text.fix_lists();
+        text.fix_number_spacing()?;
+        // text.remove_tag("ul");
+        text.unwrap_tag("hl");
+        text.remove_tag("pandocbounded");
+        text.comment_out_tables();
+        text.change_latex_quotes();
+        text.replace_envelopes();
+        text.remove_tightlists();
+        text.unindent();
+        text.replace_bullets();
+        text.fix_images(part_name);
+        text.replace_super_sub_scripts();
+        text.fix_email_links();
+        text.remove_zero_hspace();
+        text.replace_textless();
+
+        // Split into individual articles
+        let articles: Vec<String> = text.split_articles();
+
+        // Write each article into its own numbered .tex file
+        for (i, article) in articles.iter().enumerate() {
+            let file_path = part_dir.join(format!("{:03}.tex", i + 1));
+            write(file_path, article)?;
         }
-    }
 
-    write(&main_path, new_content)?;
-    Ok(())
-}
+        // Extract images
+        extract_images_from_docx(input_path.to_str().unwrap(), media_dir.to_str().unwrap())?;
 
-pub fn watch_and_compile_project(project_dir: Option<PathBuf>) -> io::Result<()> {
-    let project_dir = project_dir.unwrap_or_else(|| PathBuf::from("."));
-    let build_dir = project_dir.join("build");
-    create_dir_all(&build_dir)?;
+        // Update main.tex with new article inputs
+        let articles_main: String = (0..articles.len())
+            .map(|i| format!("\n\\input{{src/{part_name}/{:03}.tex}}", i + 1))
+            .collect();
 
-    // Compile once on startup
-    println!("{}", "Initial compilation started...".cyan());
-    compile_project(&project_dir, &build_dir);
+        let contents = read_to_string(&self.main_tex)?;
+        let mut new_content = String::new();
+        let mut inserted = false;
 
-    let (tx, rx) = channel();
-    let mut watcher = RecommendedWatcher::new(tx, Config::default())
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-    watcher
-        .watch(&project_dir, RecursiveMode::Recursive)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-    let mut last_event = Instant::now();
-    let debounce_duration = Duration::from_millis(500);
-    let mut triggered = false;
-
-    loop {
-        // Wait for an event with timeout
-        match rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(Ok(event)) => {
-                if !matches!(event.kind, EventKind::Modify(_)) {
-                    continue;
-                }
-                let relevant_paths = event
-                    .paths
-                    .into_iter()
-                    .filter(|p| p.exists() && !should_ignore(p))
-                    .collect::<Vec<_>>();
-
-                if relevant_paths.is_empty() {
-                    continue;
-                }
-
-                for path in &relevant_paths {
-                    println!(
-                        "{}",
-                        format!("Detected change: {}", path.display()).yellow()
-                    );
-                }
-                triggered = true;
-                last_event = Instant::now();
-            }
-            Ok(Err(e)) => eprintln!("{}", format!("Watch error: {}", e).yellow()),
-            Err(_) => {
-                if triggered && last_event.elapsed() >= debounce_duration {
-                    triggered = false;
-                    println!("{}", "Compilation started...".cyan());
-                    compile_project(&project_dir, &build_dir);
-                }
+        for line in contents.lines() {
+            new_content.push_str(line);
+            new_content.push('\n');
+            if !inserted && line.trim() == "% Main content" {
+                new_content.push_str(&articles_main);
+                inserted = true;
             }
         }
+
+        write(&self.main_tex, new_content)?;
+        Ok(())
     }
-}
 
-fn compile_project(project_dir: &PathBuf, build_dir: &PathBuf) {
-    let start_time = Instant::now();
+    /// Compile the project in watch mode (watches for file changes and auto-recompiles)
+    pub fn compile(&self) -> io::Result<()> {
+        create_dir_all(&self.build_dir)?;
 
-    let status = std::process::Command::new("xelatex")
-        .args(&[
-            "-interaction=nonstopmode",
-            "-halt-on-error",
-            "-output-directory",
-            &build_dir.display().to_string(),
-            "main.tex",
-        ])
-        .current_dir(project_dir)
-        .status();
+        // Build once on startup
+        println!("{}", "Initial compilation started...".cyan());
+        self.build();
 
-    let duration = start_time.elapsed();
+        let (tx, rx) = channel();
+        let mut watcher = RecommendedWatcher::new(tx, Config::default())
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    match status {
-        Ok(status) if status.success() => {
-            println!(
-                "{}",
-                format!("Compilation succeeded! ({:.2}s)", duration.as_secs_f64()).green()
-            )
+        watcher
+            .watch(&self.root_dir, RecursiveMode::Recursive)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+        let mut last_event = Instant::now();
+        let debounce_duration = Duration::from_millis(500);
+        let mut triggered = false;
+
+        loop {
+            // Wait for an event with timeout
+            match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(Ok(event)) => {
+                    if !matches!(event.kind, EventKind::Modify(_)) {
+                        continue;
+                    }
+                    let relevant_paths = event
+                        .paths
+                        .into_iter()
+                        .filter(|p| p.exists() && !should_ignore(p))
+                        .collect::<Vec<_>>();
+
+                    if relevant_paths.is_empty() {
+                        continue;
+                    }
+
+                    for path in &relevant_paths {
+                        println!(
+                            "{}",
+                            format!("Detected change: {}", path.display()).yellow()
+                        );
+                    }
+                    triggered = true;
+                    last_event = Instant::now();
+                }
+                Ok(Err(e)) => eprintln!("{}", format!("Watch error: {}", e).yellow()),
+                Err(_) => {
+                    if triggered && last_event.elapsed() >= debounce_duration {
+                        triggered = false;
+                        println!("{}", "Compilation started...".cyan());
+                        self.build();
+                    }
+                }
+            }
         }
-        Ok(status) => {
-            eprintln!(
-                "{}",
-                format!(
-                    "Compilation failed with status: {} ({:.2}s)",
-                    status,
-                    duration.as_secs_f64()
-                )
-                .red()
-            )
+    }
+
+    /// Build the project once without watching (for one-time compilation)
+    pub fn build_once(&self) -> io::Result<()> {
+        create_dir_all(&self.build_dir)?;
+        self.build();
+        Ok(())
+    }
+
+    /// Show project status and information
+    pub fn status(&self) -> Result<(), Box<dyn Error>> {
+        println!("Project: {}", self.root_dir.display());
+        println!("  Source directory: {}", self.src_dir.display());
+        println!("  Media directory: {}", self.media_dir.display());
+        println!("  Build directory: {}", self.build_dir.display());
+        println!("  Main file: {}", self.main_tex.display());
+
+        if self.main_tex.exists() {
+            println!("  Status: {}", "Initialized".green());
+        } else {
+            println!("  Status: {}", "Not initialized".yellow());
         }
-        Err(e) => {
-            eprintln!(
-                "{}",
-                format!(
-                    "Failed to run xelatex: {} ({:.2}s)",
-                    e,
-                    duration.as_secs_f64()
+
+        if self.build_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&self.build_dir) {
+                let pdf_count = entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("pdf"))
+                    .count();
+                if pdf_count > 0 {
+                    println!("  PDFs built: {}", pdf_count);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Clean build artifacts
+    pub fn clean(&self) -> Result<(), Box<dyn Error>> {
+        if self.build_dir.exists() {
+            std::fs::remove_dir_all(&self.build_dir)?;
+            println!("Removed build directory: {}", self.build_dir.display());
+        } else {
+            println!("Build directory does not exist, nothing to clean.");
+        }
+        Ok(())
+    }
+
+    /// Perform a single build/compilation of the project
+    fn build(&self) {
+        let start_time = Instant::now();
+
+        let status = std::process::Command::new("xelatex")
+            .args(&[
+                "-interaction=nonstopmode",
+                "-halt-on-error",
+                "-output-directory",
+                &self.build_dir.display().to_string(),
+                "main.tex",
+            ])
+            .current_dir(&self.root_dir)
+            .status();
+
+        let duration = start_time.elapsed();
+
+        match status {
+            Ok(status) if status.success() => {
+                println!(
+                    "{}",
+                    format!("Compilation succeeded! ({:.2}s)", duration.as_secs_f64()).green()
                 )
-                .red()
-            )
+            }
+            Ok(status) => {
+                eprintln!(
+                    "{}",
+                    format!(
+                        "Compilation failed with status: {} ({:.2}s)",
+                        status,
+                        duration.as_secs_f64()
+                    )
+                    .red()
+                )
+            }
+            Err(e) => {
+                eprintln!(
+                    "{}",
+                    format!(
+                        "Failed to run xelatex: {} ({:.2}s)",
+                        e,
+                        duration.as_secs_f64()
+                    )
+                    .red()
+                )
+            }
         }
     }
 }

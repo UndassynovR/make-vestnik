@@ -6,6 +6,7 @@ pub trait LatexStringExt {
     fn fix_lists(&mut self);
     fn fix_number_spacing(&mut self) -> Result<(), regex::Error>;
     fn remove_tag(&mut self, tag: &str);
+    fn unwrap_tag(&mut self, tag: &str);
     fn comment_out_tables(&mut self);
     fn change_latex_quotes(&mut self);
     fn replace_envelopes(&mut self);
@@ -16,8 +17,8 @@ pub trait LatexStringExt {
     fn fix_images(&mut self, part_name: &str);
     fn replace_super_sub_scripts(&mut self);
     fn fix_email_links(&mut self);
-	fn remove_zero_hspace(&mut self);
-	fn replace_textless(&mut self);
+    fn remove_zero_hspace(&mut self);
+    fn replace_textless(&mut self);
 }
 
 impl LatexStringExt for String {
@@ -68,24 +69,41 @@ impl LatexStringExt for String {
 
                     let line_text = if buf_line == r"\item" {
                         // Case: \item is alone on its line
-                        let next = buffer.get(i + 1).map(|s| s.trim_start()).unwrap_or("");
-                        let result = match list_state {
-                            ListState::Enumerate => {
-                                let text = format!("\n{}. {}", counter, next);
-                                counter += 1;
-                                text
+                        if i + 1 < buffer.len() {
+                            let next = buffer[i + 1].trim_start();
+                            // Skip if next line is also \item or empty
+                            if next == r"\item" || next.is_empty() {
+                                i += 1;
+                                continue;
                             }
-                            ListState::Itemize => format!("\n- {}", next),
-                            _ => next.to_string(),
-                        };
-                        i += 2; // skip both this and next line
-                        result
-                    } else {
+                            let result = match list_state {
+                                ListState::Enumerate => {
+                                    let text = format!("\n{}. {}", counter, next);
+                                    counter += 1;
+                                    text
+                                }
+                                ListState::Itemize => format!("\n- {}", next),
+                                _ => next.to_string(),
+                            };
+                            i += 2; // skip both this and next line
+                            result
+                        } else {
+                            // Lonely \item at end of buffer, skip it
+                            i += 1;
+                            continue;
+                        }
+                    } else if buf_line.starts_with(r"\item") {
                         // Case: \item and text on same line
                         let result = match list_state {
                             ListState::Enumerate => {
                                 if let Some(rest) = buf_line.strip_prefix("\\item") {
-                                    let text = format!("\n{}. {}", counter, rest.trim_start());
+                                    let rest = rest.trim_start();
+                                    if rest.is_empty() {
+                                        // \item with nothing after it on same line, skip
+                                        i += 1;
+                                        continue;
+                                    }
+                                    let text = format!("\n{}. {}", counter, rest);
                                     counter += 1;
                                     text
                                 } else {
@@ -94,7 +112,13 @@ impl LatexStringExt for String {
                             }
                             ListState::Itemize => {
                                 if let Some(rest) = buf_line.strip_prefix("\\item") {
-                                    format!("\n- {}", rest.trim_start())
+                                    let rest = rest.trim_start();
+                                    if rest.is_empty() {
+                                        // \item with nothing after it on same line, skip
+                                        i += 1;
+                                        continue;
+                                    }
+                                    format!("\n- {}", rest)
                                 } else {
                                     buf_line.to_string()
                                 }
@@ -103,6 +127,10 @@ impl LatexStringExt for String {
                         };
                         i += 1;
                         result
+                    } else {
+                        // Regular line inside list (not starting with \item)
+                        i += 1;
+                        buf_line.to_string()
                     };
 
                     output.push_str(&line_text);
@@ -172,6 +200,63 @@ impl LatexStringExt for String {
         *self = output;
     }
 
+    fn unwrap_tag(&mut self, tag: &str) {
+        // Remove \tag{CONTENT} but keep CONTENT
+        // Handles both simple \section{text} and complex \section[opt]{text}
+        let mut output = String::new();
+        let chars: Vec<char> = self.chars().collect();
+        let tag_pattern = format!("\\{}", tag);
+        let tag_chars: Vec<char> = tag_pattern.chars().collect();
+
+        let mut i = 0;
+        while i < chars.len() {
+            if chars[i..].starts_with(&tag_chars) {
+                i += tag_chars.len();
+
+                // Skip optional argument [...]
+                if i < chars.len() && chars[i] == '[' {
+                    let mut bracket_level = 1;
+                    i += 1;
+                    while i < chars.len() && bracket_level > 0 {
+                        match chars[i] {
+                            '[' => bracket_level += 1,
+                            ']' => bracket_level -= 1,
+                            _ => {}
+                        }
+                        i += 1;
+                    }
+                }
+
+                // Now extract content from {...}
+                if i < chars.len() && chars[i] == '{' {
+                    i += 1;
+                    let mut brace_level = 1;
+                    while i < chars.len() && brace_level > 0 {
+                        match chars[i] {
+                            '{' => {
+                                brace_level += 1;
+                                output.push(chars[i]);
+                            }
+                            '}' => {
+                                brace_level -= 1;
+                                if brace_level > 0 {
+                                    output.push(chars[i]);
+                                }
+                            }
+                            _ => output.push(chars[i]),
+                        }
+                        i += 1;
+                    }
+                }
+            } else {
+                output.push(chars[i]);
+                i += 1;
+            }
+        }
+
+        *self = output;
+    }
+
     fn comment_out_tables(&mut self) {
         let mut inside_table = false;
         let mut result = Vec::new();
@@ -225,15 +310,36 @@ impl LatexStringExt for String {
     }
 
     fn split_articles(&self) -> Vec<String> {
+        println!("=== DEBUG: split_articles ===");
+        println!("First 5 lines of input:");
+        for (i, line) in self.lines().take(5).enumerate() {
+            println!("Line {}: {}", i, line);
+        }
+
         let re_wrap =
             Regex::new(r"\s*(?:\{\\bfseries\s+)?((?:IRSTI|ҒТАМР|МРНТИ|ГРНТИ)[0-9. ]*)\}?").unwrap();
+
+        println!("\n--- After first regex replacement ---");
         let modified = re_wrap.replace_all(self, r"\\id{$1}{}").into_owned();
+        for (i, line) in modified.lines().take(5).enumerate() {
+            println!("Line {}: {}", i, line);
+        }
 
         let re_split = Regex::new(r"\\id\{(?:МРНТИ|IRSTI|ҒТАМР|ГРНТИ)[0-9 .,]*\}\{\}").unwrap();
+
+        println!("\n--- Split markers found ---");
+        let markers: Vec<_> = re_split.find_iter(&modified).collect();
+        for (i, mat) in markers.iter().enumerate() {
+            println!(
+                "Marker {}: '{}' at position {}",
+                i,
+                mat.as_str(),
+                mat.start()
+            );
+        }
+
         let mut articles = Vec::new();
         let mut last_index = 0;
-
-        let markers: Vec<_> = re_split.find_iter(&modified).collect();
 
         for (i, mat) in markers.iter().enumerate() {
             if i > 0 {
@@ -246,6 +352,14 @@ impl LatexStringExt for String {
         if last_index < modified.len() {
             let article = &modified[last_index..];
             articles.push(article.trim().to_string());
+        }
+
+        println!("\n--- Articles extracted: {} ---", articles.len());
+        for (i, article) in articles.iter().enumerate() {
+            println!("\nArticle {}:", i);
+            for (j, line) in article.lines().take(5).enumerate() {
+                println!("  Line {}: {}", j, line);
+            }
         }
 
         articles
@@ -271,26 +385,26 @@ impl LatexStringExt for String {
         *self = subscript_re.replace_all(self, r"\tsb{$1}").into();
     }
 
-	fn fix_email_links(&mut self) {
-		// Regex to match \href{mailto:EMAIL}{\nolinkurl{EMAIL}}
-		let email_regex = Regex::new(r"\\href\{mailto:([^}]+)\}\{\\nolinkurl\{[^}]+\}\}")
-			.expect("Invalid regex pattern");
+    fn fix_email_links(&mut self) {
+        // Regex to match \href{mailto:EMAIL}{\nolinkurl{EMAIL}}
+        let email_regex = Regex::new(r"\\href\{mailto:([^}]+)\}\{\\nolinkurl\{[^}]+\}\}")
+            .expect("Invalid regex pattern");
 
-		let result = email_regex.replace_all(self, |caps: &regex::Captures| {
-			let mut email = caps[1].to_string();
-			// Escape underscores for LaTeX safety
-			email = email.replace("_", r"\_");
-			email
-		});
+        let result = email_regex.replace_all(self, |caps: &regex::Captures| {
+            let mut email = caps[1].to_string();
+            // Escape underscores for LaTeX safety
+            email = email.replace("_", r"\_");
+            email
+        });
 
-		*self = result.into_owned();
-	}
+        *self = result.into_owned();
+    }
 
-	fn remove_zero_hspace(&mut self) {
-		*self = self.replace(r"\hspace{0pt}", "");
-	}
+    fn remove_zero_hspace(&mut self) {
+        *self = self.replace(r"\hspace{0pt}", "");
+    }
 
-	fn replace_textless(&mut self) {
-		*self = self.replace(r"\textless", "<");
-	}
+    fn replace_textless(&mut self) {
+        *self = self.replace(r"\textless", "<");
+    }
 }

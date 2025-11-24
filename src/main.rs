@@ -3,8 +3,8 @@ mod latex_ext;
 mod pandoc_ext;
 mod project;
 mod util;
-use project::*;
 
+use project::Project;
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
@@ -12,28 +12,41 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
 
-    // Show brief usage for no arguments
     if args.len() < 2 {
-        println!("Usage: make-vestnik <action> [options]...\nTry 'make-vestnik --help' for more information.");
+        print_detailed_help();
         return Ok(());
     }
 
-    // Show detailed help for help flag
-    if args
-        .get(1)
-        .map_or(false, |arg| arg == "--help" || arg == "-h")
-    {
-        print_usage();
-        return Ok(());
+    let cmd = args[1].as_str();
+
+    match cmd {
+        "--help" | "-h" | "help" => {
+            print_detailed_help();
+            return Ok(());
+        }
+        "--version" | "-v" => {
+            print_version();
+            return Ok(());
+        }
+        _ => {}
     }
 
-    let action = args[1].as_str();
+    // Determine project directory (can be overridden by commands that accept it)
+    let project_dir = get_project_dir(&args, cmd)?;
+    let project = Project::new(&project_dir)?;
 
-    match action {
-        "create" | "update" => handle_create_update(&args)?,
-        "compile" => handle_compile(&args)?,
+    match cmd {
+        "init" => handle_init(&project)?,
+        "add" => handle_add(&project, &args)?,
+        "compile" | "watch" => handle_compile(&project)?,
+        "build" => handle_build(&project)?,
+        "status" => handle_status(&project)?,
+        "clean" => handle_clean(&project)?,
         _ => {
-            eprintln!("Error: Unknown action '{}'. Available actions: create, update, compile. Use --help for more information.", action);
+            eprintln!(
+                "Error: Unknown command '{}'. Use 'make-vestnik help' for usage.",
+                cmd
+            );
             std::process::exit(1);
         }
     }
@@ -41,110 +54,138 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn print_usage() {
-    println!(
-        "Document Project Manager - make-vestnik
+fn get_project_dir(args: &[String], cmd: &str) -> Result<String, Box<dyn Error>> {
+    // For 'add' command, project_dir might be at args[3]
+    // For other commands, it's at args[2]
+    let dir_index = if cmd == "add" && args.len() > 3 {
+        3
+    } else if args.len() > 2 && !args[2].ends_with(".docx") {
+        2
+    } else {
+        return Ok(env::current_dir()?
+            .to_str()
+            .ok_or("Invalid current directory")?
+            .to_string());
+    };
 
-USAGE:
-    make-vestnik <action> [options]
-
-ACTIONS:
-    create <project_dir> <docx_file>    Create new project from DOCX
-    update <project_dir> <docx_file>    Update existing project with DOCX
-    compile [project_dir]               Compile project (watch mode)
-
-EXAMPLES:
-    make-vestnik create ./my-project document.docx
-    make-vestnik update ./my-project updated.docx
-    make-vestnik compile ./my-project
-    make-vestnik compile                          # Uses current directory
-
-OPTIONS:
-    -h, --help                          Show this help message"
-    );
+    Ok(args[dir_index].clone())
 }
 
-fn handle_create_update(args: &[String]) -> Result<(), Box<dyn Error>> {
-    if args.len() < 4 {
-        eprintln!("Error: {} action requires both project directory and DOCX file. Usage: make-vestnik {} <project_dir> <docx_file>",
-            args[1], args[1]);
+fn print_detailed_help() {
+    println!("make-vestnik - Document Project Manager\n");
+    println!("USAGE:");
+    println!("    make-vestnik <COMMAND> [OPTIONS]\n");
+    println!("COMMANDS:");
+    println!("    init [project_dir]");
+    println!("        Initialize project (defaults to current directory)\n");
+    println!("    add <docx_file> [project_dir]");
+    println!("        Add or update a DOCX file in the project (defaults to current directory)\n");
+    println!("    compile [project_dir]");
+    println!("        Compile project in watch mode (auto-recompile on changes)\n");
+    println!("    build [project_dir]");
+    println!("        One-time compilation without watch mode\n");
+    println!("    status [project_dir]");
+    println!("        Show project information and compilation status\n");
+    println!("    clean [project_dir]");
+    println!("        Remove build artifacts and temporary files\n");
+    println!("EXAMPLES:");
+    println!("    make-vestnik init");
+    println!("    make-vestnik init ./my-project");
+    println!("    make-vestnik add document.docx");
+    println!("    make-vestnik add document.docx ./my-project");
+    println!("    make-vestnik compile");
+    println!("    make-vestnik build ./my-project");
+    println!("    make-vestnik status");
+    println!("    make-vestnik clean\n");
+    println!("OPTIONS:");
+    println!("    -h, --help     Show this help message");
+    println!("    -v, --version  Show version information");
+}
+
+fn print_version() {
+    println!("make-vestnik version {}", env!("CARGO_PKG_VERSION"));
+}
+
+fn handle_init(project: &Project) -> Result<(), Box<dyn Error>> {
+    let path = PathBuf::from(&project.root_dir);
+
+    // Check if directory exists and if it's already initialized
+    if path.exists() {
+        println!("Initializing project in existing directory...");
+    } else {
+        println!("Creating and initializing new project...");
+    }
+
+    project.init()?;
+    println!("✓ Project initialized successfully.");
+    println!("\nNext steps:");
+    println!("  1. Add a DOCX file: make-vestnik add <file.docx>");
+    println!("  2. Start compiling: make-vestnik compile");
+
+    Ok(())
+}
+
+fn handle_add(project: &Project, args: &[String]) -> Result<(), Box<dyn Error>> {
+    if args.len() < 3 {
+        eprintln!("Error: add requires a DOCX file.");
+        eprintln!("Usage: make-vestnik add <docx_file> [project_dir]");
         std::process::exit(1);
     }
 
-    let action = &args[1];
+    let docx_file = &args[2];
 
-    // Parse arguments to identify docx file and project directory (order doesn't matter)
-    let mut docx_file = None;
-    let mut project_dir = None;
-
-    for arg in &args[2..] {
-        if arg.ends_with(".docx") {
-            docx_file = Some(arg);
-        } else {
-            project_dir = Some(arg);
-        }
+    if !docx_file.ends_with(".docx") {
+        eprintln!("Error: File must be a .docx file.");
+        std::process::exit(1);
     }
 
-    let docx_file = docx_file.ok_or("Error: Missing .docx file")?;
-    let project_dir = project_dir.ok_or("Error: Missing project directory")?;
-
-    // Check if DOCX file exists
     if !PathBuf::from(docx_file).exists() {
         eprintln!("Error: DOCX file '{}' not found.", docx_file);
         std::process::exit(1);
     }
 
-    println!(
-        "Starting {} operation with project directory '{}' and DOCX file '{}'",
-        action, project_dir, docx_file
-    );
-
-    if action == "create" {
-        println!("Creating new project...");
-        create_project(project_dir)?;
-        println!("Project created successfully.");
+    if !PathBuf::from(&project.root_dir).exists() {
+        eprintln!("Error: Project directory not found.");
+        eprintln!("Use 'make-vestnik init' to create it first.");
+        std::process::exit(1);
     }
 
-    println!("Updating project with DOCX content...");
-    update_project(docx_file, project_dir)?;
-    println!("Project updated successfully.");
+    println!("Adding '{}'...", docx_file);
+    project.add(docx_file)?;
+    println!("✓ File added/updated successfully.");
 
     Ok(())
 }
 
-fn handle_compile(args: &[String]) -> Result<(), Box<dyn Error>> {
-    // Check for .docx files in compile arguments (common mistake)
-    for arg in &args[2..] {
-        if arg.ends_with(".docx") {
-            eprintln!("Error: Compile action cannot process DOCX files. Did you mean to use 'create' or 'update' instead?");
-            std::process::exit(1);
-        }
+fn handle_compile(project: &Project) -> Result<(), Box<dyn Error>> {
+    if !PathBuf::from(&project.root_dir).exists() {
+        eprintln!("Error: Project directory not found.");
+        std::process::exit(1);
     }
 
-    let project_dir = if args.len() > 2 {
-        let dir = PathBuf::from(&args[2]);
-        if !dir.exists() {
-            eprintln!("Error: Directory '{}' not found.", args[2]);
-            std::process::exit(1);
-        }
-        Some(dir)
-    } else {
-        let current =
-            env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
-        println!("Using current directory: {}", current.display());
-        Some(current)
-    };
+    println!("Starting watch mode... Press Ctrl+C to stop.");
+    project.compile()?;
 
-    let dir_msg = match &project_dir {
-        Some(dir) => format!(
-            "Starting compilation in watch mode for directory '{}'. Press Ctrl+C to stop.",
-            dir.display()
-        ),
-        None => "Starting compilation in watch mode. Press Ctrl+C to stop.".to_string(),
-    };
-    println!("{}", dir_msg);
+    Ok(())
+}
 
-    watch_and_compile_project(project_dir)?;
+fn handle_build(project: &Project) -> Result<(), Box<dyn Error>> {
+    println!("Building project...");
+    project.build_once()?;
+    println!("✓ Build completed successfully.");
+
+    Ok(())
+}
+
+fn handle_status(project: &Project) -> Result<(), Box<dyn Error>> {
+    project.status()?;
+    Ok(())
+}
+
+fn handle_clean(project: &Project) -> Result<(), Box<dyn Error>> {
+    println!("Cleaning build artifacts...");
+    project.clean()?;
+    println!("✓ Project cleaned successfully.");
 
     Ok(())
 }

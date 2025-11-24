@@ -24,6 +24,8 @@
         buildInputs = with pkgs; [
           pandoc
           texlive.combined.scheme-full
+          imagemagick
+          ghostscript
         ];
 
         nativeBuildInputs = with pkgs; [
@@ -32,10 +34,6 @@
 
         meta = with pkgs.lib; {
           description = "LaTeX document project manager — converts DOCX, updates projects, and compiles XeLaTeX";
-          homepage = "https://example.com";
-          license = licenses.mit;
-          maintainers = [];
-          platforms = platforms.all;
         };
       };
 
@@ -46,6 +44,8 @@
           cargo-watch
           pandoc
           texlive.combined.scheme-full
+          imagemagick
+          ghostscript
           perl
           python3
         ];

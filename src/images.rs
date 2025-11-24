@@ -2,8 +2,9 @@ use anyhow::Result;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
+use std::process::Command;
 use zip::ZipArchive;
-// TODO: convert gif, tiff images to png
+
 pub fn extract_images_from_docx<P: AsRef<Path>, Q: AsRef<Path>>(
     docx_path: P,
     output_dir: Q,
@@ -35,6 +36,55 @@ pub fn extract_images_from_docx<P: AsRef<Path>, Q: AsRef<Path>>(
             file.read_to_end(&mut buffer)?;
             out_file.write_all(&buffer)?;
         }
+    }
+
+    // Convert unsupported formats to PNG
+    for entry in fs::read_dir(output_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            let ext_lower = ext.to_lowercase();
+
+            // Convert WMF, EMF, GIF, and TIFF to PNG
+            if matches!(ext_lower.as_str(), "wmf" | "emf" | "gif" | "tiff" | "tif") {
+                convert_to_png(&path)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn convert_to_png(path: &Path) -> Result<()> {
+    let png_path = path.with_extension("png");
+
+    let status = Command::new("magick")
+        .args(&[
+            path.to_str()
+                .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,
+            "-density",
+            "300",
+            "-background",
+            "white",
+            "-alpha",
+            "remove",
+            "-flatten",
+            png_path
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,
+        ])
+        .status()?;
+
+    if status.success() {
+        // Remove original file after successful conversion
+        fs::remove_file(path)?;
+        println!(
+            "✓ Converted {} to PNG",
+            path.file_name().unwrap().to_str().unwrap()
+        );
+    } else {
+        eprintln!("⚠ Warning: Failed to convert {}", path.display());
     }
 
     Ok(())
