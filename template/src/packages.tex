@@ -232,9 +232,12 @@
 
 \newenvironment{header}{%
     \begin{center}%
-    \fontsize{11}{12}\selectfont % Slightly smaller line height for the header
+    \fontsize{11}{12}\selectfont%
+    \linespread{1.0}% Ensure consistent line spacing
+    \normalbaselineskip=12pt%
 }{%
     \end{center}%
+    \normalsize% Reset to document default after header
 }
 
 \newcommand{\swa}[2]{%
@@ -252,6 +255,7 @@
 
 \newenvironment{affil}{%
     \fontsize{10}{10}\selectfont % Smaller font size
+    \itshape % Make text italic
     \setlength{\parskip}{0pt} % Remove space between paragraphs
     \centering
     \vspace{-0.8em} % Reduce space between header and affiliation
@@ -259,33 +263,65 @@
     \par%
 }
 
+% Enhanced refs environment with aggressive hyphenation for transliterated text
 \newenvironment{refs}{%
   \setlength{\parindent}{0pt}%
+  \hyphenpenalty=0          % No penalty for hyphenation
+  \exhyphenpenalty=0        % No penalty for explicit hyphens
+  \tolerance=9999           % Very tolerant line breaking
+  \emergencystretch=3em     % Allow extra stretch in emergencies
+  \righthyphenmin=1         % Allow hyphen after 1 character
+  \lefthyphenmin=1          % Allow hyphen before 1 character
 }{%
   \par%
 }
 
+% Enhanced info environment with aggressive hyphenation
 \newenvironment{info}{%
   \vspace{\baselineskip}%
   \fontsize{10}{12}\selectfont%
   \setlength{\parindent}{0pt}%
+  \hyphenpenalty=0          % No penalty for hyphenation
+  \exhyphenpenalty=0        % No penalty for explicit hyphens
+  \tolerance=9999           % Very tolerant line breaking
+  \emergencystretch=3em     % Allow extra stretch in emergencies
+  \righthyphenmin=1         % Allow hyphen after 1 character
+  \lefthyphenmin=1          % Allow hyphen before 1 character
+}{%
+  \par%
+}
+
+% Super aggressive refs environment - for extremely problematic text
+\newenvironment{arefs}{%
+  \setlength{\parindent}{0pt}%
+  \hyphenpenalty=0          % No penalty for hyphenation
+  \exhyphenpenalty=0        % No penalty for explicit hyphens
+  \tolerance=10000          % Maximum tolerance
+  \hbadness=10000           % Suppress badness warnings
+  \emergencystretch=3em     % Allow extra stretch in emergencies
+  \righthyphenmin=1         % Allow hyphen after 1 character
+  \lefthyphenmin=1          % Allow hyphen before 1 character
+  \sloppy                   % Very relaxed spacing
 }{%
   \par%
 }
 
 \renewcommand{\nolinkurl}[1]{#1}
 
-\newcommand*{\tcap}[2][]{% table caption
+\usepackage{needspace}
+
+\newcommand*{\tcap}[2][]{%
+  \needspace{5\baselineskip}% Ensures enough space or forces page break
   \begin{center}
-    \parbox{0.9\textwidth}{\centering\textbf{% Adjust width as needed (0.8, 0.85, 0.9, etc.)
-      \ifx\\#1\\% Check if optional argument is empty
+    \parbox{0.9\textwidth}{\centering\textbf{%
+      \ifx\\#1\\%
         #2%
       \else
         #2%
       \fi
     }}
   \end{center}
-  \vspace{-1em}
+  \addvspace{\abovecaptionskip}% Flexible space
 }
 
 % Custom figure commands with flexible width units
@@ -302,6 +338,10 @@
   \end{figure}%
 }
 
+% \figstart{Data visualization results}
+% \subfig[0.45\textwidth]{5cm}{chart1.png}{Performance metrics}
+% \subfig[0.45\textwidth]{5cm}{chart2.png}{Accuracy comparison}
+% \figend
 % Subfigure helper: \subfig[width]{height}{path}{caption}
 \newcommand{\subfig}[4][0.3\textwidth]{%
   \begin{subfigure}[t]{#1}
@@ -320,10 +360,12 @@
 
 % End multi-subfigure environment: \figend
 \newcommand{\figend}{%
-    \ifx\maincaption\empty%
-      \caption*{}%
-    \else%
-      \caption*{\maincaption}%
-    \fi%
+  \ifx\maincaption\empty%
+    % Do nothing - no caption at all
+  \else%
+    \caption*{\maincaption}%
+  \fi%
   \end{figure}%
 }
+
+\usepackage{rotating}
