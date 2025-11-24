@@ -1,5 +1,5 @@
 use regex::Regex;
-
+// TODO: \textasciitilde with space, \textless with {}
 pub trait LatexStringExt {
     fn replace_textbf(&mut self);
     fn remove_short_bfseries(&mut self) -> Result<(), regex::Error>;
