@@ -38,22 +38,30 @@ impl Project {
 
     /// Initialize a new project by copying template files
     pub fn init(&self) -> Result<(), Box<dyn Error>> {
-        // Get the absolute path of the current executable
-        let exe_path = env::current_exe()?;
-        let exe_dir = exe_path.parent().unwrap();
+        let template_path = if cfg!(debug_assertions) {
+            // Debug: old behavior, relative to project root
+            let exe_path = env::current_exe()?;
+            let exe_dir = exe_path.parent().unwrap();
+            let project_root = exe_dir
+                .parent()
+                .and_then(|p| p.parent())
+                .ok_or("Could not find project root")?;
+            project_root.join("template")
+        } else {
+            // Release: installed templates in share
+            let exe_path = env::current_exe()?;
+            let exe_dir = exe_path.parent().unwrap();
+            // $out/share/make-vestnik/templates
+            exe_dir.join("../share/make-vestnik/templates")
+                .canonicalize()
+                .unwrap_or_else(|_| exe_dir.join("../share/make-vestnik/templates"))
+        };
 
-        // Go up to the project root (two levels up from target/debug)
-        let project_root = exe_dir
-            .parent()
-            .and_then(|p| p.parent())
-            .ok_or_else(|| "Could not find project root")?;
+        if !template_path.exists() {
+            return Err(format!("Template directory not found: {:?}", template_path).into());
+        }
 
-        // Construct the template path relative to the project root
-        let template_path = project_root.join("template");
-
-        // Copy template recursively
         copy_recursively(&template_path, &self.root_dir)?;
-
         Ok(())
     }
 
