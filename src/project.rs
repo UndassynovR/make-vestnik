@@ -39,7 +39,7 @@ impl Project {
     /// Initialize a new project by copying template files
     pub fn init(&self) -> Result<(), Box<dyn Error>> {
         let template_path = if cfg!(debug_assertions) {
-            // Debug: old behavior, relative to project root
+            // Debug: relative to project root
             let exe_path = env::current_exe()?;
             let exe_dir = exe_path.parent().unwrap();
             let project_root = exe_dir
@@ -48,13 +48,12 @@ impl Project {
                 .ok_or("Could not find project root")?;
             project_root.join("template")
         } else {
-            // Release: installed templates in share
+            // Release: installed templates in $out/share/make-vestnik/templates
             let exe_path = env::current_exe()?;
             let exe_dir = exe_path.parent().unwrap();
-            // $out/share/make-vestnik/templates
-            exe_dir.join("../share/make-vestnik/templates")
-                .canonicalize()
-                .unwrap_or_else(|_| exe_dir.join("../share/make-vestnik/templates"))
+            exe_dir.parent()  // $out/bin/.. = $out
+                .ok_or("Could not find $out root")?
+                .join("share/make-vestnik/templates")
         };
 
         if !template_path.exists() {

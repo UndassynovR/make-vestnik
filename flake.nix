@@ -14,27 +14,31 @@
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "make-vestnik";
           version = "1.0.0";
-
           src = ./.;
 
-          # FIXED: must be an attribute set
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-          };
+          cargoLock.lockFile = ./Cargo.lock;
 
-          buildInputs = with pkgs; [
+          nativeBuildInputs = [
+            pkgs.pkg-config
+          ];
+
+          # runtime dependencies
+          propagatedBuildInputs = with pkgs; [
             pandoc
             texlive.combined.scheme-full
-            imagemagick
+            imagemagickBig
             ghostscript
           ];
 
-          nativeBuildInputs = with pkgs; [
-            pkg-config
-          ];
+          # install templates in $out/share/make-vestnik/templates
+          postInstall = ''
+            mkdir -p $out/share/make-vestnik/templates
+            cp -r $src/template/* $out/share/make-vestnik/templates/
+          '';
 
           meta = with pkgs.lib; {
-            description = "LaTeX document project manager — converts DOCX, updates projects, and compiles XeLaTeX";
+            description =
+              "LaTeX document project manager — converts DOCX, updates projects, and compiles XeLaTeX";
             license = licenses.mit;
           };
         };
@@ -46,11 +50,21 @@
             cargo-watch
             pandoc
             texlive.combined.scheme-full
-            imagemagick
+            imagemagickBig
             ghostscript
             perl
             python3
           ];
+
+          # devShell: templates exist in source tree
+          # no environment variables needed
+        };
+
+        apps.default = {
+          type = "app";
+          program = ''
+            ${self.packages.${system}.default}/bin/make-vestnik
+          '';
         };
       });
 }
