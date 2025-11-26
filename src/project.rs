@@ -6,7 +6,7 @@ use colored::*;
 
 use std::env;
 use std::error::Error;
-use std::fs::{copy, create_dir_all, read_to_string, write};
+use std::fs::{self, copy, create_dir_all, read_to_string, write};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -62,6 +62,14 @@ impl Project {
         }
 
         copy_recursively(&template_path, &self.root_dir)?;
+
+        // FIX: Make main.tex writable after copying from template
+        if self.main_tex.exists() {
+            let mut perms = fs::metadata(&self.main_tex)?.permissions();
+            perms.set_readonly(false);
+            fs::set_permissions(&self.main_tex, perms)?;
+        }
+
         Ok(())
     }
 
