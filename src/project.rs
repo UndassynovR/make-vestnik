@@ -51,7 +51,8 @@ impl Project {
             // Release: installed templates in $out/share/make-vestnik/templates
             let exe_path = env::current_exe()?;
             let exe_dir = exe_path.parent().unwrap();
-            exe_dir.parent()  // $out/bin/.. = $out
+            exe_dir
+                .parent() // $out/bin/.. = $out
                 .ok_or("Could not find $out root")?
                 .join("share/make-vestnik/templates")
         };
@@ -74,6 +75,8 @@ impl Project {
             .and_then(|s| s.to_str())
             .ok_or("Failed to extract part name from input path")?;
 
+        println!("Processing: {}", part_name);
+
         // Create directory for article .tex files
         let part_dir = self.src_dir.join(part_name);
         create_dir_all(&part_dir)?;
@@ -83,7 +86,12 @@ impl Project {
         let media_dir = self.media_dir.join(part_name);
         create_dir_all(&media_dir)?;
 
+        // Extract images FIRST before any text processing
+        println!("Extracting images from DOCX...");
+        extract_images_from_docx(input_path, &media_dir)?;
+
         // Run Pandoc and process text
+        println!("Converting to LaTeX...");
         let mut text = run_pandoc(input_path);
         text.remove_tag("label");
         text.unwrap_tag("section");
@@ -107,23 +115,33 @@ impl Project {
         text.replace_textless();
 
         // Split into individual articles
+        println!("Splitting into articles...");
         let articles: Vec<String> = text.split_articles();
+        println!("Found {} articles", articles.len());
 
         // Write each article into its own numbered .tex file
         for (i, article) in articles.iter().enumerate() {
             let file_path = part_dir.join(format!("{:03}.tex", i + 1));
-            write(file_path, article)?;
+            write(&file_path, article)?;
+            println!("Written: {}", file_path.display());
         }
 
-        // Extract images
-        extract_images_from_docx(input_path.to_str().unwrap(), media_dir.to_str().unwrap())?;
-
         // Update main.tex with new article inputs
+        println!("Updating main.tex...");
         let articles_main: String = (0..articles.len())
             .map(|i| format!("\n\\input{{src/{part_name}/{:03}.tex}}", i + 1))
             .collect();
 
-        let contents = read_to_string(&self.main_tex)?;
+        println!("main.tex path: {}", self.main_tex.display());
+
+        // Check if main.tex exists and is writable
+        if !self.main_tex.exists() {
+            return Err(format!("main.tex not found at: {}", self.main_tex.display()).into());
+        }
+
+        let contents = read_to_string(&self.main_tex)
+            .map_err(|e| format!("Failed to read main.tex: {}", e))?;
+
         let mut new_content = String::new();
         let mut inserted = false;
 
@@ -133,10 +151,22 @@ impl Project {
             if !inserted && line.trim() == "% Main content" {
                 new_content.push_str(&articles_main);
                 inserted = true;
+                println!("Inserted {} article references", articles.len());
             }
         }
 
-        write(&self.main_tex, new_content)?;
+        if !inserted {
+            println!("Warning: '% Main content' marker not found in main.tex");
+        }
+
+        write(&self.main_tex, new_content).map_err(|e| {
+            format!(
+                "Failed to write to main.tex: {} (Permission denied - check file permissions)",
+                e
+            )
+        })?;
+
+        println!("✓ Successfully added {}", part_name);
         Ok(())
     }
 
