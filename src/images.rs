@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::fs::{self, File};
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use zip::ZipArchive;
 
@@ -38,7 +38,9 @@ pub fn extract_images_from_docx<P: AsRef<Path>, Q: AsRef<Path>>(
         }
     }
 
-    // Convert unsupported formats to PNG
+    // Collect paths first to avoid modifying directory while iterating
+    let mut files_to_convert: Vec<PathBuf> = Vec::new();
+
     for entry in fs::read_dir(output_dir)? {
         let entry = entry?;
         let path = entry.path();
@@ -48,8 +50,15 @@ pub fn extract_images_from_docx<P: AsRef<Path>, Q: AsRef<Path>>(
 
             // Convert WMF, EMF, GIF, and TIFF to PNG
             if matches!(ext_lower.as_str(), "wmf" | "emf" | "gif" | "tiff" | "tif") {
-                convert_to_png(&path)?;
+                files_to_convert.push(path);
             }
+        }
+    }
+
+    // Now convert collected files
+    for path in files_to_convert {
+        if let Err(e) = convert_to_png(&path) {
+            eprintln!("⚠ Warning: Failed to convert {}: {}", path.display(), e);
         }
     }
 
@@ -83,9 +92,11 @@ fn convert_to_png(path: &Path) -> Result<()> {
             "✓ Converted {} to PNG",
             path.file_name().unwrap().to_str().unwrap()
         );
+        Ok(())
     } else {
-        eprintln!("⚠ Warning: Failed to convert {}", path.display());
+        Err(anyhow::anyhow!(
+            "ImageMagick conversion failed for {}",
+            path.display()
+        ))
     }
-
-    Ok(())
 }
