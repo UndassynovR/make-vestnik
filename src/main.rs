@@ -31,6 +31,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         _ => {}
     }
 
+    // Check for --open flag
+    let open_pdf = args.contains(&"--open".to_string());
+
     // Determine project directory (can be overridden by commands that accept it)
     let project_dir = get_project_dir(&args, cmd)?;
     let project = Project::new(&project_dir)?;
@@ -38,8 +41,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     match cmd {
         "init" => handle_init(&project)?,
         "add" => handle_add(&project, &args)?,
-        "compile" | "watch" => handle_compile(&project)?,
-        "build" => handle_build(&project)?,
+        "compile" | "watch" => handle_compile(&project, open_pdf)?,
+        "build" => handle_build(&project, open_pdf)?,
         "status" => handle_status(&project)?,
         "clean" => handle_clean(&project)?,
         _ => {
@@ -55,11 +58,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn get_project_dir(args: &[String], cmd: &str) -> Result<String, Box<dyn Error>> {
+    // Filter out --open flag when looking for project_dir
+    let filtered_args: Vec<String> = args.iter().filter(|a| *a != "--open").cloned().collect();
+
     // For 'add' command, project_dir might be at args[3]
     // For other commands, it's at args[2]
-    let dir_index = if cmd == "add" && args.len() > 3 {
+    let dir_index = if cmd == "add" && filtered_args.len() > 3 {
         3
-    } else if args.len() > 2 && !args[2].ends_with(".docx") {
+    } else if filtered_args.len() > 2 && !filtered_args[2].ends_with(".docx") {
         2
     } else {
         return Ok(env::current_dir()?
@@ -68,7 +74,7 @@ fn get_project_dir(args: &[String], cmd: &str) -> Result<String, Box<dyn Error>>
             .to_string());
     };
 
-    Ok(args[dir_index].clone())
+    Ok(filtered_args[dir_index].clone())
 }
 
 fn print_detailed_help() {
@@ -80,9 +86,9 @@ fn print_detailed_help() {
     println!("        Initialize project (defaults to current directory)\n");
     println!("    add <docx_file> [project_dir]");
     println!("        Add or update a DOCX file in the project (defaults to current directory)\n");
-    println!("    compile [project_dir]");
+    println!("    compile [project_dir] [--open]");
     println!("        Compile project in watch mode (auto-recompile on changes)\n");
-    println!("    build [project_dir]");
+    println!("    build [project_dir] [--open]");
     println!("        One-time compilation without watch mode\n");
     println!("    status [project_dir]");
     println!("        Show project information and compilation status\n");
@@ -93,11 +99,12 @@ fn print_detailed_help() {
     println!("    make-vestnik init ./my-project");
     println!("    make-vestnik add document.docx");
     println!("    make-vestnik add document.docx ./my-project");
-    println!("    make-vestnik compile");
-    println!("    make-vestnik build ./my-project");
+    println!("    make-vestnik compile --open");
+    println!("    make-vestnik build ./my-project --open");
     println!("    make-vestnik status");
     println!("    make-vestnik clean\n");
     println!("OPTIONS:");
+    println!("    --open         Open PDF after successful compilation");
     println!("    -h, --help     Show this help message");
     println!("    -v, --version  Show version information");
 }
@@ -157,10 +164,17 @@ fn handle_add(project: &Project, args: &[String]) -> Result<(), Box<dyn Error>> 
     Ok(())
 }
 
-fn handle_compile(project: &Project) -> Result<(), Box<dyn Error>> {
+fn handle_compile(project: &Project, open_pdf: bool) -> Result<(), Box<dyn Error>> {
     if !PathBuf::from(&project.root_dir).exists() {
         eprintln!("Error: Project directory not found.");
         std::process::exit(1);
+    }
+
+    // Open PDF once before starting watch mode
+    if open_pdf {
+        if let Err(e) = project.open() {
+            eprintln!("Warning: Failed to open PDF: {}", e);
+        }
     }
 
     println!("Starting watch mode... Press Ctrl+C to stop.");
@@ -169,10 +183,15 @@ fn handle_compile(project: &Project) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn handle_build(project: &Project) -> Result<(), Box<dyn Error>> {
+fn handle_build(project: &Project, open_pdf: bool) -> Result<(), Box<dyn Error>> {
     println!("Building project...");
     project.build_once()?;
     println!("✓ Build completed successfully.");
+
+    // Open PDF after build completes
+    if open_pdf {
+        project.open()?;
+    }
 
     Ok(())
 }

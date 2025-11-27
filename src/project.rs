@@ -9,6 +9,7 @@ use std::error::Error;
 use std::fs::{self, copy, create_dir_all, read_to_string, write};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::mpsc::channel;
@@ -280,6 +281,24 @@ impl Project {
         } else {
             println!("Build directory does not exist, nothing to clean.");
         }
+        Ok(())
+    }
+
+    /// Open the PDF file in the default viewer
+    pub fn open(&self) -> Result<(), Box<dyn Error>> {
+        let pdf_path = self.build_dir.join("main.pdf");
+
+        if !pdf_path.exists() {
+            return Err(format!("PDF not found at: {}", pdf_path.display()).into());
+        }
+
+        println!("Opening PDF: {}", pdf_path.display());
+
+        Command::new("xdg-open")
+            .arg(&pdf_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open PDF: {}", e))?;
+
         Ok(())
     }
 
