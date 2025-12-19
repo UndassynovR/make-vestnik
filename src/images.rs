@@ -13,7 +13,7 @@ pub fn extract_images_from_docx<P: AsRef<Path>, Q: AsRef<Path>>(
     let output_dir = output_dir.as_ref();
 
     let file = File::open(docx_path)?;
-    let mut archive = ZipArchive::new(file)?;
+    let mut archive = ZipArchive::new(file).map_err(|e| anyhow::anyhow!("ZIP error: {}", e))?;
 
     // Create output directory if it doesn't exist
     fs::create_dir_all(output_dir)?;
