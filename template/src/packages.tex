@@ -88,14 +88,66 @@
 \DefTblrTemplate{contfoot}{default}{}   % Removes text denoting continuation on next page
 
 % Packages for Graphics and Figures
-\usepackage[xetex]{graphicx}          % Including graphics in the document
+\usepackage{graphicx}                 % Including graphics in the document
 \usepackage{svg}                      % Scalable Vector Graphics support
 \usepackage{float}                    % Enhanced placement of figures and tables
 \usepackage{subcaption}               % Subfigures and subtables
 
 % Packages for Mathematics
-\usepackage{amsmath}                  % Additional math symbols and environments
+\usepackage{amsmath,amssymb}                  % Additional math symbols and environments
 \usepackage{unicode-math}             % Support for Unicode math symbols
+\setmathfont{XITS Math}
+
+%See: https://tex.stackexchange.com/questions/201239/cant-get-unicode-symbols-in-math-mode
+\setmainfont{Noto Serif} % Temporarily set for symbol font declaration
+\DeclareSymbolFont{kazletters}{\encodingdefault}{\familydefault}{m}{it}
+\newcommand{\makekazmathletter}[1]{%
+  \begingroup\lccode`a=#1\lowercase{\endgroup
+  \Umathcode`a}="0 \csname symkazletters\endcsname\space #1
+}
+
+% Standard Cyrillic range (А-я)
+\count255="409
+\loop\ifnum\count255<"44F
+  \advance\count255 by 1
+  \makekazmathletter{\count255}
+\repeat
+
+% Additional Kazakh-specific letters
+% Ә ә (U+04D8-04D9)
+\makekazmathletter{"04D8}
+\makekazmathletter{"04D9}
+% Ғ ғ (U+0492-0493)
+\makekazmathletter{"0492}
+\makekazmathletter{"0493}
+% Қ қ (U+049A-049B)
+\makekazmathletter{"049A}
+\makekazmathletter{"049B}
+% Ң ң (U+04A2-04A3)
+\makekazmathletter{"04A2}
+\makekazmathletter{"04A3}
+% Ө ө (U+04E8-04E9)
+\makekazmathletter{"04E8}
+\makekazmathletter{"04E9}
+% Ұ ұ (U+04B0-04B1)
+\makekazmathletter{"04B0}
+\makekazmathletter{"04B1}
+% Ү ү (U+04AE-04AF)
+\makekazmathletter{"04AE}
+\makekazmathletter{"04AF}
+% Һ һ (U+04BA-04BB)
+\makekazmathletter{"04BA}
+\makekazmathletter{"04BB}
+% І і (U+0406-0456)
+\makekazmathletter{"0406}
+\makekazmathletter{"0456}
+
+\setmainfont[
+  Language=Default,
+  Script=Cyrillic,
+  Numbers=Lining,
+  Ligatures=TeX
+]{Liberation Serif}
 
 % Packages for Text Formatting
 \usepackage[normalem]{ulem}           % Underlining and emphasis styles
@@ -199,7 +251,10 @@
 \newcommand{\tsp}[1]{\textsuperscript{#1}}
 \newcommand{\tsb}[1]{\textsubscript{#1}}
 
-\newcommand{\envelope}{\textsuperscript{\includegraphics[width=1em]{media/envelope}}}
+\newcommand{\n}[1]{\normalfont{#1}}
+\newcommand{\nemph}[1]{\normalfont{\emph{#1}}}
+
+\newcommand{\envelope}{\textsuperscript{\includegraphics[width=0.8em]{media/envelope}}}
 \newcommand{\authorid}{\textsuperscript{\includegraphics[width=1em]{media/authorid}}}
 
 % Improved alink command with empty argument handling
@@ -235,6 +290,7 @@
     \fontsize{11}{12}\selectfont%
     \linespread{1.0}% Ensure consistent line spacing
     \normalbaselineskip=12pt%
+    \bfseries % Make all text bold
 }{%
     \end{center}%
     \normalsize% Reset to document default after header
@@ -261,6 +317,12 @@
     \vspace{-0.8em} % Reduce space between header and affiliation
 }{%
     \par%
+}
+
+\newcommand{\corrauthor}[1]{%
+  \vspace{0.4em} % space above
+  \par\noindent\raggedright\envelope~#1%
+  \vspace{0.3em} % space below
 }
 
 % Enhanced refs environment with aggressive hyphenation for transliterated text
@@ -326,46 +388,190 @@
 
 % Custom figure commands with flexible width units
 % Simple figure: \fig[width]{path}{caption}
-\newcommand{\fig}[3][0.8\textwidth]{%
-  \begin{figure}[H]
-    \centering
-    \includegraphics[width=#1]{media/#2}
-    \ifx\\#3\\%
-      \caption*{}%
-    \else%
-      \caption*{#3}%
-    \fi%
-  \end{figure}%
-}
+% \newcommand{\fig}[3][0.8\textwidth]{%
+%   \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=#1]{media/#2}
+%     \ifx\\#3\\%
+%       \caption*{}%
+%     \else%
+%       \caption*{#3}%
+%     \fi%
+%   \end{figure}%
+% }
 
 % \figstart{Data visualization results}
 % \subfig[0.45\textwidth]{5cm}{chart1.png}{Performance metrics}
 % \subfig[0.45\textwidth]{5cm}{chart2.png}{Accuracy comparison}
 % \figend
 % Subfigure helper: \subfig[width]{height}{path}{caption}
-\newcommand{\subfig}[4][0.3\textwidth]{%
-  \begin{subfigure}[t]{#1}
-    \centering
-    \includegraphics[width=\textwidth, height=#2]{media/#3}
-    \caption*{\textit{#4}}
-  \end{subfigure}%
-}
+% \newcommand{\subfig}[4][0.3\textwidth]{%
+%   \begin{subfigure}[t]{#1}
+%     \centering
+%     \includegraphics[width=\textwidth, height=#2]{media/#3}
+%     \caption*{\textit{#4}}
+%   \end{subfigure}%
+% }
 
-% Start multi-subfigure environment: \figstart{main caption}
-\newcommand{\figstart}[1]{%
-  \begin{figure}[H]
-    \centering
-    \def\maincaption{#1}%
-}
+% % Start multi-subfigure environment: \figstart{main caption}
+% \newcommand{\figstart}[1]{%
+%   \begin{figure}[H]
+%     \centering
+%     \def\maincaption{#1}%
+% }
 
-% End multi-subfigure environment: \figend
-\newcommand{\figend}{%
-  \ifx\maincaption\empty%
-    % Do nothing - no caption at all
-  \else%
-    \caption*{\maincaption}%
-  \fi%
-  \end{figure}%
-}
+% % End multi-subfigure environment: \figend
+% \newcommand{\figend}{%
+%   \ifx\maincaption\empty%
+%     % Do nothing - no caption at all
+%   \else%
+%     \caption*{\maincaption}%
+%   \fi%
+%   \end{figure}%
+% }
 
 \usepackage{rotating}
+\usepackage{xparse}
+\makeatletter
+
+\newif\ifinfigs
+\infigsfalse
+
+% figs environment with optional caption
+\NewDocumentEnvironment{figs}{ o }{%
+  \infigstrue
+  \begin{figure}[H]
+    \centering
+    \IfNoValueTF{#1}{%
+      \def\figscaption{}%
+    }{%
+      \def\figscaption{#1}%
+    }%
+    \hfill% Start with hfill before figures
+}{%
+    \hfill% End with hfill after figures
+    \par
+    \ifx\figscaption\empty
+      % no caption
+    \else
+      \caption*{\textbf{\figscaption}}%
+    \fi
+  \end{figure}
+  \infigsfalse
+}
+
+% Internal helper: image+caption in a fixed box
+\newcommand{\galleryimg}[4]{%
+  \begin{minipage}[t]{#1}
+    \centering
+    \if\relax\detokenize{#2}\relax
+      % no height specified
+      \includegraphics[width=\textwidth]{media/#3}%
+    \else
+      % height specified
+      \includegraphics[width=\textwidth,height=#2,keepaspectratio=false]{media/#3}%
+    \fi
+    \if\relax\detokenize{#4}\relax
+      % no caption
+    \else
+      \par\vspace{1ex}\small\textbf{#4}%
+    \fi
+  \end{minipage}%
+}
+
+\NewDocumentCommand{\fig}{ O{0.8\textwidth} O{} m O{} }{%
+  \ifinfigs
+    \galleryimg{#1}{#2}{#3}{#4}%
+    \hfill
+  \else
+    \begin{figure}[H]
+      \centering
+      \if\relax\detokenize{#2}\relax
+        \includegraphics[width=#1]{media/#3}%
+      \else
+        \includegraphics[width=#1,height=#2,keepaspectratio=false]{media/#3}%
+      \fi
+      \if\relax\detokenize{#4}\relax
+        % no caption
+      \else
+        \caption*{\textbf{#4}}%
+      \fi
+    \end{figure}%
+  \fi
+}
+
+\makeatother
+% Usage examples:
+% 
+% ==== BASIC USAGE ====
+% 
+% Single figure with caption:
+% \fig[0.6\textwidth]{path/to/image}[Caption text]
+% 
+% Single figure without caption (default width 0.8\textwidth):
+% \fig{path/to/image}
+% 
+% Single figure with custom width, no caption:
+% \fig[0.5\textwidth]{path/to/image}
+% 
+% Single figure with fixed height (will distort if aspect ratio doesn't match):
+% \fig[0.6\textwidth][8cm]{path/to/image}[Caption with fixed height]
+% 
+% 
+% ==== FIGS ENVIRONMENT (GALLERY MODE) ====
+% 
+% Side-by-side with captions:
+% \begin{figs}
+%   \fig[0.45\textwidth]{i/image2}[а) First caption]
+%   \fig[0.45\textwidth]{i/image3}[б) Second caption]
+% \end{figs}
+% 
+% Side-by-side without captions:
+% \begin{figs}
+%   \fig[0.45\textwidth]{i/image2}
+%   \fig[0.45\textwidth]{i/image3}
+% \end{figs}
+% 
+% Three figures in a row:
+% \begin{figs}
+%   \fig[0.3\textwidth]{i/image1}[а)]
+%   \fig[0.3\textwidth]{i/image2}[б)]
+%   \fig[0.3\textwidth]{i/image3}[в)]
+% \end{figs}
+% 
+% Auto-wrapping (if figures are too wide, they wrap to next line):
+% \begin{figs}
+%   \fig[0.45\textwidth]{i/image1}[а)]
+%   \fig[0.45\textwidth]{i/image2}[б)]
+%   \fig[0.45\textwidth]{i/image3}[в)]
+%   \fig[0.45\textwidth]{i/image4}[г)]
+% \end{figs}
+% 
+% Gallery with overall caption:
+% \begin{figs}[Figure 3. Multiple experimental results]
+%   \fig[0.3\textwidth]{i/result1}[а)]
+%   \fig[0.3\textwidth]{i/result2}[б)]
+%   \fig[0.3\textwidth]{i/result3}[в)]
+% \end{figs}
+% 
+% Mix figures with and without captions:
+% \begin{figs}
+%   \fig[0.3\textwidth]{i/image2}[Has caption]
+%   \fig[0.3\textwidth]{i/image3}
+%   \fig[0.3\textwidth]{i/image4}[Another caption]
+% \end{figs}
+% 
+% Gallery with fixed heights (useful for images with different aspect ratios):
+% \begin{figs}
+%   \fig[0.3\textwidth][5cm]{i/tall}[а)]
+%   \fig[0.3\textwidth][5cm]{i/wide}[б)]
+%   \fig[0.3\textwidth][5cm]{i/square}[в)]
+% \end{figs}
+% 
+% Using default width (0.8\textwidth) inside figs - figures will wrap:
+% \begin{figs}
+%   \fig{i/image1}[First]
+%   \fig{i/image2}[Second]
+% \end{figs}
+\usepackage{adjustbox} % for 1 damn table, remove it in next vestnik
+\usepackage{wrapfig} % for 1 damn page, remove it in next vestnik
