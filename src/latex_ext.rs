@@ -371,7 +371,7 @@ impl LatexStringExt for String {
         )
         .unwrap();
         *self = re
-            .replace_all(self, format!("\\fig{{{part_name}/$1}}{{}}"))
+            .replace_all(self, format!("\\fig{{{part_name}/$1}}[]"))
             .into();
     }
 
