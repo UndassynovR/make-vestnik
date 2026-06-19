@@ -367,7 +367,7 @@ impl LatexStringExt for String {
 
     fn fix_images(&mut self, part_name: &str) {
         let re = Regex::new(
-            r"\\includegraphics\[[^]]*\]\{media/([^}/\\]+?)(?:\.(?:png|jpe?g|pdf|webp|wmf|emf|gif))?\}",
+            r"\\includegraphics\[[^]]*\]\{media/([^}/\\]+?)(?:\.(?:png|jpe?g|pdf|webp|wmf|emf|gif|tiff?))?\}",
         )
         .unwrap();
         *self = re

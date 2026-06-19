@@ -110,6 +110,7 @@ impl Project {
         text.fix_number_spacing()?;
         text.remove_tag("ul");
         text.unwrap_tag("hl");
+        text.unwrap_tag("RL");
         text.remove_tag("pandocbounded");
         text.comment_out_tables();
         text.change_latex_quotes();
