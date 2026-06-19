@@ -108,7 +108,7 @@ impl Project {
         text.remove_short_bfseries()?;
         text.fix_lists();
         text.fix_number_spacing()?;
-        // text.remove_tag("ul");
+        text.remove_tag("ul");
         text.unwrap_tag("hl");
         text.remove_tag("pandocbounded");
         text.comment_out_tables();
