@@ -123,6 +123,8 @@ impl Project {
         text.fix_email_links();
         text.remove_zero_hspace();
         text.replace_textless();
+        text.remove_pua_chars();
+        text.replace_textasciitilde();
 
         // Split into individual articles
         println!("Splitting into articles...");

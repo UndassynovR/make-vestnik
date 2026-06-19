@@ -1,5 +1,5 @@
 use regex::Regex;
-// TODO: \textasciitilde with space, \textless with {}
+
 pub trait LatexStringExt {
     fn replace_textbf(&mut self);
     fn remove_short_bfseries(&mut self) -> Result<(), regex::Error>;
@@ -19,6 +19,8 @@ pub trait LatexStringExt {
     fn fix_email_links(&mut self);
     fn remove_zero_hspace(&mut self);
     fn replace_textless(&mut self);
+    fn remove_pua_chars(&mut self);
+    fn replace_textasciitilde(&mut self);
 }
 
 impl LatexStringExt for String {
@@ -35,24 +37,20 @@ impl LatexStringExt for String {
 
     fn fix_lists(&mut self) {
         let mut output = String::new();
-
         #[derive(PartialEq)]
         enum ListState {
             NormalText,
             Itemize,
             Enumerate,
         }
-
         let mut list_state = ListState::NormalText;
         let mut buffer: Vec<&str> = Vec::new();
 
         for line in self.lines() {
             let trimmed_line = line.trim_start();
-
             if trimmed_line == r"\def\labelenumi{\arabic{enumi}.}" {
                 continue;
             }
-
             if trimmed_line.contains(r"\begin{itemize}") {
                 list_state = ListState::Itemize;
                 continue;
@@ -66,7 +64,6 @@ impl LatexStringExt for String {
                 let mut i = 0;
                 while i < buffer.len() {
                     let buf_line = buffer[i].trim_start();
-
                     let line_text = if buf_line == r"\item" {
                         // Case: \item is alone on its line
                         if i + 1 < buffer.len() {
@@ -132,11 +129,9 @@ impl LatexStringExt for String {
                         i += 1;
                         buf_line.to_string()
                     };
-
                     output.push_str(&line_text);
                     output.push('\n');
                 }
-
                 buffer.clear();
                 list_state = ListState::NormalText;
                 continue; // don't leak \end{...}
@@ -149,18 +144,15 @@ impl LatexStringExt for String {
                 output.push('\n');
             }
         }
-
         *self = output.replace("\n\n\n", "\n\n");
     }
 
     fn fix_number_spacing(&mut self) -> Result<(), regex::Error> {
         let re_numbers = Regex::new(r"\n((?:\d+\.)+)\s*")?;
         let re_dot = Regex::new(r"\.( )(\d)")?;
-
         let mut result = self.clone();
         result = re_numbers.replace_all(&result, "\n$1 ").to_string();
         result = re_dot.replace_all(&result, ".$2").to_string();
-
         *self = result;
         Ok(())
     }
@@ -170,7 +162,6 @@ impl LatexStringExt for String {
         let chars: Vec<char> = self.chars().collect();
         let tag_pattern = format!("\\{}{{", tag);
         let tag_chars: Vec<char> = tag_pattern.chars().collect();
-
         let mut i = 0;
         while i < chars.len() {
             if chars[i..].starts_with(&tag_chars) {
@@ -196,24 +187,18 @@ impl LatexStringExt for String {
                 i += 1;
             }
         }
-
         *self = output;
     }
 
     fn unwrap_tag(&mut self, tag: &str) {
-        // Remove \tag{CONTENT} but keep CONTENT
-        // Handles both simple \section{text} and complex \section[opt]{text}
         let mut output = String::new();
         let chars: Vec<char> = self.chars().collect();
         let tag_pattern = format!("\\{}", tag);
         let tag_chars: Vec<char> = tag_pattern.chars().collect();
-
         let mut i = 0;
         while i < chars.len() {
             if chars[i..].starts_with(&tag_chars) {
                 i += tag_chars.len();
-
-                // Skip optional argument [...]
                 if i < chars.len() && chars[i] == '[' {
                     let mut bracket_level = 1;
                     i += 1;
@@ -226,8 +211,6 @@ impl LatexStringExt for String {
                         i += 1;
                     }
                 }
-
-                // Now extract content from {...}
                 if i < chars.len() && chars[i] == '{' {
                     i += 1;
                     let mut brace_level = 1;
@@ -253,14 +236,12 @@ impl LatexStringExt for String {
                 i += 1;
             }
         }
-
         *self = output;
     }
 
     fn comment_out_tables(&mut self) {
         let mut inside_table = false;
         let mut result = Vec::new();
-
         for line in self.lines() {
             if line.starts_with(r"\begin{longtable}[]{@{}") {
                 inside_table = true;
@@ -274,7 +255,6 @@ impl LatexStringExt for String {
                 result.push(line.to_string());
             }
         }
-
         *self = result.join("\n");
     }
 
@@ -285,7 +265,6 @@ impl LatexStringExt for String {
     }
 
     fn replace_envelopes(&mut self) {
-        // First: replace envelope emoji with LaTeX command
         *self = self.replace('🖂', r"\envelope ");
         *self = self.replace(r"\textsuperscript{\envelope }", r"\envelope ");
         *self = self.replace(r"{\bfseries \envelope }", r"\envelope ");
@@ -298,13 +277,12 @@ impl LatexStringExt for String {
     fn unindent(&mut self) {
         *self = self
             .lines()
-            .map(|line| line.trim_start()) // Remove all leading whitespace
+            .map(|line| line.trim_start())
             .collect::<Vec<_>>()
             .join("\n");
     }
 
     fn replace_bullets(&mut self) {
-        // Regex: start of line (^), optional whitespace (\s*), bullet (•)
         let re = Regex::new(r"(?m)^(\s*)•").unwrap();
         *self = re.replace_all(self, "$1-").into();
     }
@@ -315,32 +293,20 @@ impl LatexStringExt for String {
         for (i, line) in self.lines().take(5).enumerate() {
             println!("Line {}: {}", i, line);
         }
-
-        let re_wrap =
-            Regex::new(r"\s*(?:\{\\bfseries\s+)?((?:IRSTI|ҒТАМР|МРНТИ|ГРНТИ)[0-9. ]*)\}?").unwrap();
-
+        let re_wrap = Regex::new(r"\s*(?:\{\\bfseries\s+)?((?:IRSTI|ҒТАМР|МРНТИ|ГРНТИ)[0-9. ]*)\}?").unwrap();
         println!("\n--- After first regex replacement ---");
         let modified = re_wrap.replace_all(self, r"\\id{$1}{}").into_owned();
         for (i, line) in modified.lines().take(5).enumerate() {
             println!("Line {}: {}", i, line);
         }
-
         let re_split = Regex::new(r"\\id\{(?:МРНТИ|IRSTI|ҒТАМР|ГРНТИ)[0-9 .,]*\}\{\}").unwrap();
-
         println!("\n--- Split markers found ---");
         let markers: Vec<_> = re_split.find_iter(&modified).collect();
         for (i, mat) in markers.iter().enumerate() {
-            println!(
-                "Marker {}: '{}' at position {}",
-                i,
-                mat.as_str(),
-                mat.start()
-            );
+            println!("Marker {}: '{}' at position {}", i, mat.as_str(), mat.start());
         }
-
         let mut articles = Vec::new();
         let mut last_index = 0;
-
         for (i, mat) in markers.iter().enumerate() {
             if i > 0 {
                 let article = &modified[last_index..mat.start()];
@@ -348,12 +314,10 @@ impl LatexStringExt for String {
             }
             last_index = mat.start();
         }
-
         if last_index < modified.len() {
             let article = &modified[last_index..];
             articles.push(article.trim().to_string());
         }
-
         println!("\n--- Articles extracted: {} ---", articles.len());
         for (i, article) in articles.iter().enumerate() {
             println!("\nArticle {}:", i);
@@ -361,7 +325,6 @@ impl LatexStringExt for String {
                 println!("  Line {}: {}", j, line);
             }
         }
-
         articles
     }
 
@@ -376,27 +339,20 @@ impl LatexStringExt for String {
     }
 
     fn replace_super_sub_scripts(&mut self) {
-        // Replace \textsuperscript{...} with \tsp{...}
         let superscript_re = Regex::new(r"\\textsuperscript\{([^}]*)\}").unwrap();
         *self = superscript_re.replace_all(self, r"\tsp{$1}").into();
-
-        // Replace \textsubscript{...} with \tsb{...}
         let subscript_re = Regex::new(r"\\textsubscript\{([^}]*)\}").unwrap();
         *self = subscript_re.replace_all(self, r"\tsb{$1}").into();
     }
 
     fn fix_email_links(&mut self) {
-        // Regex to match \href{mailto:EMAIL}{\nolinkurl{EMAIL}}
         let email_regex = Regex::new(r"\\href\{mailto:([^}]+)\}\{\\nolinkurl\{[^}]+\}\}")
             .expect("Invalid regex pattern");
-
         let result = email_regex.replace_all(self, |caps: &regex::Captures| {
             let mut email = caps[1].to_string();
-            // Escape underscores for LaTeX safety
             email = email.replace("_", r"\_");
             email
         });
-
         *self = result.into_owned();
     }
 
@@ -406,5 +362,22 @@ impl LatexStringExt for String {
 
     fn replace_textless(&mut self) {
         *self = self.replace(r"\textless", "<");
+    }
+
+    fn remove_pua_chars(&mut self) {
+        self.retain(|c| {
+            !matches!(
+                c,
+                '\u{E000}'..='\u{F8FF}' |       // BMP Private Use Area
+                '\u{F0000}'..='\u{FFFFD}' |     // Supplementary Private Use Area-A
+                '\u{100000}'..='\u{10FFFD}'     // Supplementary Private Use Area-B
+            )
+        });
+    }
+
+    fn replace_textasciitilde(&mut self) {
+        *self = self.replace(r"\textasciitilde{}", "~")
+                    .replace(r"\textasciitilde ", "~")
+                    .replace(r"\textasciitilde", "~");
     }
 }
