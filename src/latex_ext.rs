@@ -240,17 +240,19 @@ impl LatexStringExt for String {
     }
 
     fn comment_out_tables(&mut self) {
-        let mut inside_table = false;
+        let mut depth: u32 = 0;
         let mut result = Vec::new();
         for line in self.lines() {
-            if line.starts_with(r"\begin{longtable}[]{@{}") {
-                inside_table = true;
+            let trimmed = line.trim_start();
+            let begins = trimmed.matches(r"\begin{longtable}").count() as u32;
+            let ends = trimmed.matches(r"\end{longtable}").count() as u32;
+
+            if depth > 0 {
                 result.push(format!("%% {}", line));
-            } else if line.starts_with(r"\end{longtable}") && inside_table {
-                inside_table = false;
+                depth = (depth + begins).saturating_sub(ends);
+            } else if trimmed.starts_with(r"\begin{longtable}[]{@{}") {
                 result.push(format!("%% {}", line));
-            } else if inside_table {
-                result.push(format!("%% {}", line));
+                depth = (1 + begins.saturating_sub(1)).saturating_sub(ends);
             } else {
                 result.push(line.to_string());
             }

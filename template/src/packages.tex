@@ -97,9 +97,14 @@
 \usepackage{amsmath,amssymb}                  % Additional math symbols and environments
 \usepackage{unicode-math}             % Support for Unicode math symbols
 \setmathfont{XITS Math}
+% Fallback: route Mathematical Alphanumeric Symbols block (U+1D400-1D7FF) through XITS Math.
+% This catches any Unicode math chars (e.g. 𝛥 U+1D6E5) pasted into text by authors,
+% preventing xdvipdfmx "Invalid font: -1" fatal crashes.
+\setmathfont[range={"1D400-"1D7FF}]{XITS Math}
 
 %See: https://tex.stackexchange.com/questions/201239/cant-get-unicode-symbols-in-math-mode
-\setmainfont{Noto Serif} % Temporarily set for symbol font declaration
+% Note: \familydefault already refers to Liberation Serif (set above), so no
+% temporary \setmainfont switch is needed here.
 \DeclareSymbolFont{kazletters}{\encodingdefault}{\familydefault}{m}{it}
 \newcommand{\makekazmathletter}[1]{%
   \begingroup\lccode`a=#1\lowercase{\endgroup
@@ -141,13 +146,6 @@
 % І і (U+0406-0456)
 \makekazmathletter{"0406}
 \makekazmathletter{"0456}
-
-\setmainfont[
-  Language=Default,
-  Script=Cyrillic,
-  Numbers=Lining,
-  Ligatures=TeX
-]{Liberation Serif}
 
 % Packages for Text Formatting
 \usepackage[normalem]{ulem}           % Underlining and emphasis styles
